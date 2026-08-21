@@ -1,6 +1,24 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { initializeApp, getApps } from 'firebase/app';
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
+
+// إعدادات Firebase الخاصة بمشروعك
+const firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+};
+
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const auth = getAuth(app);
+const db = getFirestore(app);
+const googleProvider = new GoogleAuthProvider();
 
 export interface Habit {
   id: string;
@@ -13,42 +31,63 @@ export interface Habit {
 
 export default function HomePage() {
   const [habits, setHabits] = useState<Habit[]>([]);
+  const [user, setUser] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [userEmail, setUserEmail] = useState('');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   // نموذج إضافة عادة
   const [title, setTitle] = useState('');
   const [targetCount, setTargetCount] = useState<number>(10);
   const [unit, setUnit] = useState('صفحة');
 
+  // 1. الاستماع لحالة تسجيل الدخول وجلب البيانات السحابية الحقيقية
   useEffect(() => {
-    const savedHabits = localStorage.getItem('habit_tracker_data');
-    const savedEmail = localStorage.getItem('habit_tracker_user_email');
-    if (savedHabits) setHabits(JSON.parse(savedHabits));
-    if (savedEmail) {
-      setUserEmail(savedEmail);
-      setIsLoggedIn(true);
-    }
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+
+      if (currentUser) {
+        // عند وجود مستخدم: المزامنة مباشرة مع Firestore باستخدام إيميل المستخدم
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        const unsubscribeSnapshot = onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists() && docSnap.data().habits) {
+            setHabits(docSnap.data().habits);
+          }
+        });
+        return () => unsubscribeSnapshot();
+      } else {
+        // في حال عدم تسجيل الدخول: الاعتماد على الذاكرة المحلية
+        const savedHabits = localStorage.getItem('habit_tracker_data');
+        if (savedHabits) setHabits(JSON.parse(savedHabits));
+      }
+    });
+
+    return () => unsubscribeAuth();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('habit_tracker_data', JSON.stringify(habits));
-  }, [habits]);
+  // 2. حفظ العادات سحابياً عند أي تعديل إذا كان المستخدم مسجلاً
+  const saveHabitsData = async (updatedHabits: Habit[]) => {
+    setHabits(updatedHabits);
+    if (user) {
+      try {
+        const userDocRef = doc(db, 'users', user.uid);
+        await setDoc(userDocRef, { habits: updatedHabits, email: user.email }, { merge: true });
+      } catch (error) {
+        console.error('خطأ في حفظ البيانات سحابياً:', error);
+      }
+    } else {
+      localStorage.setItem('habit_tracker_data', JSON.stringify(updatedHabits));
+    }
+  };
 
-  const handleSimulatedGoogleLogin = () => {
-    const email = prompt('أدخل بريدك الإلكتروني للتسجيل والمزامنة:');
-    if (email) {
-      setUserEmail(email);
-      setIsLoggedIn(true);
-      localStorage.setItem('habit_tracker_user_email', email);
+  const handleGoogleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      console.error('خطأ في تسجيل الدخول:', error);
     }
   };
 
   const handleLogout = () => {
-    setIsLoggedIn(false);
-    setUserEmail('');
-    localStorage.removeItem('habit_tracker_user_email');
+    signOut(auth);
   };
 
   const handleAddHabit = (e: React.FormEvent) => {
@@ -64,15 +103,17 @@ export default function HomePage() {
       unit,
     };
 
-    setHabits((prev) => [...prev, newHabit]);
+    const updated = [...habits, newHabit];
+    saveHabitsData(updated);
     setTitle('');
     setIsModalOpen(false);
   };
 
   const updateProgress = (id: string, value: number) => {
-    setHabits((prev) =>
-      prev.map((h) => (h.id === id ? { ...h, completedCount: Math.max(0, Math.min(value, h.targetCount)) } : h))
+    const updated = habits.map((h) =>
+      h.id === id ? { ...h, completedCount: Math.max(0, Math.min(value, h.targetCount)) } : h
     );
+    saveHabitsData(updated);
   };
 
   const totalPercentage =
@@ -84,16 +125,16 @@ export default function HomePage() {
 
   return (
     <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-6 dir-rtl text-right min-h-screen pb-24 text-white">
-      {/* شريط أعلى الصفحة لتسجيل الدخول */}
+      {/* شريط المزامنة أعلى الصفحة */}
       <div className="flex justify-between items-center bg-gray-800 p-4 rounded-2xl border border-gray-700 shadow-lg">
         <div>
           <h2 className="text-xs text-gray-400">حساب المزامنة</h2>
           <p className="font-bold text-sm text-blue-400">
-            {isLoggedIn ? userEmail : 'غير مسجّل'}
+            {user ? user.email : 'غير مسجّل'}
           </p>
         </div>
 
-        {isLoggedIn ? (
+        {user ? (
           <button
             onClick={handleLogout}
             className="text-xs bg-red-500/20 text-red-400 px-3 py-2 rounded-xl border border-red-500/30 font-bold hover:bg-red-500/30 transition"
@@ -102,15 +143,15 @@ export default function HomePage() {
           </button>
         ) : (
           <button
-            onClick={handleSimulatedGoogleLogin}
+            onClick={handleGoogleLogin}
             className="flex items-center gap-2 bg-white text-gray-800 px-4 py-2 rounded-xl font-bold text-xs hover:bg-gray-100 transition shadow"
           >
-            <span>تسجيل الدخول بالبريد الإلكتروني 🔐</span>
+            <span>تسجيل الدخول للمزامنة 🔐</span>
           </button>
         )}
       </div>
 
-      {/* شريط النسبة المئوية */}
+      {/* شريط نسبة الإنجاز الكلية */}
       <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-xl space-y-3">
         <div className="flex justify-between items-center">
           <span className="font-bold text-lg">نسبة إنجاز اليوم الكلية</span>
