@@ -1,31 +1,53 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { auth, db, googleProvider } from '@/lib/firebase';
-import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import React, { useState, useEffect } from 'react';
+import { 
+  signInWithPopup, 
+  signInWithRedirect, 
+  getRedirectResult, 
+  signOut, 
+  onAuthStateChanged, 
+  User 
+} from 'firebase/auth';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { auth, db, googleProvider } from '../lib/firebase';
 
 export interface Habit {
   id: string;
   title: string;
-  type: 'counter' | 'timer' | 'boolean';
   targetCount: number;
   completedCount: number;
   unit: string;
 }
 
-export default function HomePage() {
+export default function Home() {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
   const [habits, setHabits] = useState<Habit[]>([]);
-  const [user, setUser] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [title, setTitle] = useState('');
   const [targetCount, setTargetCount] = useState<number>(10);
   const [unit, setUnit] = useState('صفحة');
 
+  // متابعة حالة المستخدم وتلقي نتيجة الـ Redirect
   useEffect(() => {
+    const handleRedirect = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          console.log('تم تسجيل الدخول بنجاح عبر Redirect:', result.user);
+        }
+      } catch (error: any) {
+        console.error('خطأ في نتيجة Redirect:', error);
+      }
+    };
+
+    handleRedirect();
+
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      setLoading(false);
 
       if (currentUser) {
         const userDocRef = doc(db, 'users', currentUser.uid);
@@ -58,17 +80,32 @@ export default function HomePage() {
     }
   };
 
+  // تسجيل الدخول مع معالجة حظر النافذة
   const handleGoogleLogin = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (error: any) {
-      console.error('خطأ تسجيل الدخول:', error);
-      alert(`سبب عدم فتح النافذة:\n${error.code}\n${error.message}`);
+      if (
+        error.code === 'auth/popup-blocked' || 
+        error.code === 'auth/cancelled-popup-request'
+      ) {
+        console.log('النافذة المنبثقة محظورة، يتم التحويل إلى Redirect...');
+        await signInWithRedirect(auth, googleProvider);
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        console.log('تم إغلاق النافذة بواسطة المستخدم');
+      } else {
+        console.error('Login error:', error);
+        alert(`خطأ في تسجيل الدخول: ${error.message}`);
+      }
     }
   };
 
-  const handleLogout = () => {
-    signOut(auth);
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error: any) {
+      alert(`حدث خطأ أثناء تسجيل الخروج: ${error.message}`);
+    }
   };
 
   const handleAddHabit = (e: React.FormEvent) => {
@@ -78,7 +115,6 @@ export default function HomePage() {
     const newHabit: Habit = {
       id: Date.now().toString(),
       title,
-      type: 'counter',
       targetCount: Number(targetCount) || 1,
       completedCount: 0,
       unit,
@@ -105,14 +141,17 @@ export default function HomePage() {
         );
 
   return (
-    <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-6 dir-rtl text-right min-h-screen pb-24 text-white">
-      {/* شريط المزامنة أعلى الصفحة */}
-      <div className="flex justify-between items-center bg-gray-800 p-4 rounded-2xl border border-gray-700 shadow-lg">
+    <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-6 dir-rtl text-right min-h-screen pb-24 text-white bg-[#0d1117]" dir="rtl">
+      <div className="flex justify-between items-center bg-[#161b22] p-4 rounded-2xl border border-gray-800 shadow-lg">
         <div>
           <h2 className="text-xs text-gray-400">حساب المزامنة</h2>
-          <p className="font-bold text-sm text-blue-400">
-            {user ? user.email : 'غير مسجّل'}
-          </p>
+          {loading ? (
+            <p className="font-bold text-sm text-gray-400">جاري التحقق...</p>
+          ) : user ? (
+            <p className="font-bold text-sm text-green-400">{user.displayName || user.email}</p>
+          ) : (
+            <p className="font-bold text-sm text-red-400">غير مسجّل</p>
+          )}
         </div>
 
         {user ? (
@@ -132,25 +171,23 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* شريط نسبة الإنجاز الكلية */}
-      <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-xl space-y-3">
+      <div className="bg-[#161b22] p-6 rounded-2xl border border-gray-800 shadow-xl space-y-3">
         <div className="flex justify-between items-center">
           <span className="font-bold text-lg">نسبة إنجاز اليوم الكلية</span>
           <span className="text-3xl font-extrabold text-blue-400">{totalPercentage}%</span>
         </div>
-        <div className="w-full bg-gray-700 h-4 rounded-full overflow-hidden">
+        <div className="w-full bg-gray-800 h-4 rounded-full overflow-hidden">
           <div
-            className="bg-gradient-to-r from-blue-500 to-green-400 h-full transition-all duration-500"
+            className="bg-gradient-to-r from-blue-500 to-emerald-400 h-full transition-all duration-500"
             style={{ width: `${totalPercentage}%` }}
           />
         </div>
       </div>
 
-      {/* قائمة العادات */}
       <div className="space-y-4">
         <h3 className="text-xl font-bold">عاداتك اليومية</h3>
         {habits.length === 0 ? (
-          <div className="text-center py-12 bg-gray-800/50 rounded-2xl border border-dashed border-gray-700 text-gray-400">
+          <div className="text-center py-12 bg-[#161b22]/50 rounded-2xl border border-dashed border-gray-800 text-gray-400">
             لا توجد عادات مضافة. اضغط على زر (+) لإضافة مهمة!
           </div>
         ) : (
@@ -159,7 +196,7 @@ export default function HomePage() {
             return (
               <div
                 key={habit.id}
-                className="bg-gray-800 p-5 rounded-2xl border border-gray-700 flex justify-between items-center gap-4 shadow-lg"
+                className="bg-[#161b22] p-5 rounded-2xl border border-gray-800 flex justify-between items-center gap-4 shadow-lg"
               >
                 <div>
                   <h4 className="font-bold text-lg">{habit.title}</h4>
@@ -173,7 +210,7 @@ export default function HomePage() {
                     type="number"
                     value={habit.completedCount}
                     onChange={(e) => updateProgress(habit.id, Number(e.target.value))}
-                    className="w-16 bg-gray-700 border border-gray-600 p-2 text-center rounded-xl outline-none"
+                    className="w-16 bg-gray-800 border border-gray-700 p-2 text-center rounded-xl outline-none"
                   />
                   <button
                     onClick={() => updateProgress(habit.id, habit.completedCount + 1)}
@@ -188,7 +225,6 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* زر إضافة عادة جديدة */}
       <button
         onClick={() => setIsModalOpen(true)}
         className="fixed bottom-6 left-6 w-14 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-2xl text-3xl font-bold flex items-center justify-center transition-transform hover:scale-110 active:scale-95"
@@ -196,10 +232,9 @@ export default function HomePage() {
         +
       </button>
 
-      {/* نافذة إضافة عادة */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-800 border border-gray-700 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl">
+          <div className="bg-[#161b22] border border-gray-800 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl">
             <div className="flex justify-between items-center">
               <h3 className="text-xl font-bold">إضافة عادة جديدة</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 font-bold">✕</button>
@@ -213,7 +248,7 @@ export default function HomePage() {
                   placeholder="مثلاً: قراءة القرآن"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full bg-gray-700 border border-gray-600 p-3 rounded-xl outline-none"
+                  className="w-full bg-gray-800 border border-gray-700 p-3 rounded-xl outline-none"
                   required
                 />
               </div>
@@ -225,7 +260,7 @@ export default function HomePage() {
                     type="number"
                     value={targetCount}
                     onChange={(e) => setTargetCount(Number(e.target.value))}
-                    className="w-full bg-gray-700 border border-gray-600 p-3 rounded-xl outline-none"
+                    className="w-full bg-gray-800 border border-gray-700 p-3 rounded-xl outline-none"
                     min="1"
                     required
                   />
@@ -236,7 +271,7 @@ export default function HomePage() {
                     type="text"
                     value={unit}
                     onChange={(e) => setUnit(e.target.value)}
-                    className="w-full bg-gray-700 border border-gray-600 p-3 rounded-xl outline-none"
+                    className="w-full bg-gray-800 border border-gray-700 p-3 rounded-xl outline-none"
                     required
                   />
                 </div>
