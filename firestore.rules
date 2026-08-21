@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Quick start (no auth) ────────────────────────────────────────
+    // Open read/write for 30 days so you can get the app running first.
+    // This means ANYONE with your Firebase config can read/write your
+    // data — fine for a personal single-device test, not for shipping.
+    // Replace with the authenticated block below before real use.
+    match /{document=**} {
+      allow read, write: if request.time < timestamp.date(2026, 9, 20);
+    }
+
+    // ── Recommended: per-user data with Firebase Auth ────────────────
+    // 1. Enable an auth provider (Anonymous is enough to get started)
+    //    in the Firebase console → Authentication → Sign-in method.
+    // 2. Sign the user in on app load (see README "Adding Auth").
+    // 3. Add a `userId` field to every habit/log/note doc on write.
+    // 4. Replace the block above with this one:
+    //
+    // match /habits/{habitId} {
+    //   allow read, write: if request.auth != null &&
+    //     (resource == null || resource.data.userId == request.auth.uid) &&
+    //     request.resource.data.userId == request.auth.uid;
+    // }
+    // match /logs/{logId} {
+    //   allow read, write: if request.auth != null &&
+    //     (resource == null || resource.data.userId == request.auth.uid) &&
+    //     request.resource.data.userId == request.auth.uid;
+    // }
+    // match /dayNotes/{noteId} {
+    //   allow read, write: if request.auth != null &&
+    //     (resource == null || resource.data.userId == request.auth.uid) &&
+    //     request.resource.data.userId == request.auth.uid;
+    // }
+  }
+}
