@@ -4,8 +4,13 @@ export interface Habit {
   targetCount: number;
   completedCount: number;
   unit: string;
+  category?: string;
+  frequency?: string;
+  days?: string[];
   selectedDays?: string[];
-  createdAt: string;
+  completed?: boolean;
+  createdAt?: string;
+  streak?: number;
 }
 
 export interface DayLog {
