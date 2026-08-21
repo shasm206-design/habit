@@ -1,29 +1,22 @@
-export type HabitType = "simple" | "textRepetition" | "timer" | "counter";
-
 export interface Habit {
   id: string;
-  name: string;
-  icon: string;
-  colorHex: string;
-  type: HabitType;
-  targetValue: number;
+  title: string;
+  targetCount: number;
+  completedCount: number;
   unit: string;
-  sortOrder: number;
-  isArchived: boolean;
-  createdAt: number; // epoch ms
+  selectedDays?: string[];
+  createdAt: string;
 }
 
-export interface HabitLog {
-  id: string; // `${habitId}_${dateStr}`
-  habitId: string;
-  date: string; // "YYYY-MM-DD"
-  value: number;
-  isCompleted: boolean;
-  updatedAt: number;
-}
-
-export interface DayNote {
-  date: string; // "YYYY-MM-DD", also the Firestore doc id
-  text: string;
-  updatedAt: number;
+export interface DayLog {
+  date: string;
+  totalPercentage: number;
+  completedHabits: {
+    habitId: string;
+    title: string;
+    completedCount: number;
+    targetCount: number;
+    unit: string;
+    percentage: number;
+  }[];
 }

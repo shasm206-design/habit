@@ -1,77 +1,185 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState } from "react";
-import { Habit, HabitLog } from "@/lib/types";
-import { subscribeHabits, subscribeLogsForDate } from "@/lib/firestore";
-import { dateKey } from "@/lib/date";
-import HabitCard from "@/components/HabitCard";
-import ProgressRing from "@/components/ProgressRing";
-import AddHabitModal from "@/components/AddHabitModal";
+import { useState, useEffect } from 'react';
 
-export default function DashboardPage() {
+interface Habit {
+  id: string;
+  title: string;
+  targetCount: number;
+  completedCount: number;
+  unit: string;
+  days: string[];
+}
+
+export default function HomePage() {
   const [habits, setHabits] = useState<Habit[]>([]);
-  const [logs, setLogs] = useState<HabitLog[]>([]);
-  const [showAdd, setShowAdd] = useState(false);
-  const today = useMemo(() => new Date(), []);
-  const todayStr = dateKey(today);
+  const [title, setTitle] = useState('');
+  const [targetCount, setTargetCount] = useState<number>(10);
+  const [unit, setUnit] = useState('صفحة');
+  const [selectedDays, setSelectedDays] = useState<string[]>(['كل الأيام']);
 
-  useEffect(() => subscribeHabits(setHabits), []);
-  useEffect(() => subscribeLogsForDate(todayStr, setLogs), [todayStr]);
+  const allDays = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
 
-  const activeHabits = habits.filter((h) => !h.isArchived);
-  const logByHabit = new Map(logs.map((l) => [l.habitId, l]));
+  // إضافة عادة جديدة
+  const handleAddHabit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return;
 
-  const overallRatio = activeHabits.length
-    ? activeHabits.reduce((sum, h) => {
-        const log = logByHabit.get(h.id);
-        const ratio = h.targetValue > 0 ? (log?.value ?? 0) / h.targetValue : 0;
-        return sum + Math.min(ratio, 1);
-      }, 0) / activeHabits.length
-    : 0;
+    const newHabit: Habit = {
+      id: Date.now().toString(),
+      title,
+      targetCount: Number(targetCount) || 1, // تحويل صريح لرقم
+      completedCount: 0,
+      unit,
+      days: selectedDays,
+    };
+
+    setHabits((prev) => [...prev, newHabit]);
+    setTitle('');
+    setTargetCount(10);
+  };
+
+  // زيادة العداد دون توقف عند 1
+  const handleIncrement = (id: string) => {
+    setHabits((prev) =>
+      prev.map((habit) => {
+        if (habit.id === id) {
+          const nextCount = Number(habit.completedCount) + 1;
+          return {
+            ...habit,
+            completedCount: nextCount <= habit.targetCount ? nextCount : habit.targetCount,
+          };
+        }
+        return habit;
+      })
+    );
+  };
+
+  // تعيين عدد يدوي للعادة (مثلاً إدخال 20 صفحة مباشرة)
+  const handleSetCount = (id: string, value: number) => {
+    const numValue = Number(value) || 0;
+    setHabits((prev) =>
+      prev.map((habit) =>
+        habit.id === id ? { ...habit, completedCount: Math.min(numValue, habit.targetCount) } : habit
+      )
+    );
+  };
+
+  const toggleDay = (day: string) => {
+    setSelectedDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+    );
+  };
 
   return (
-    <main className="max-w-lg mx-auto px-4 pt-6 pb-4 space-y-5">
-      <header className="flex flex-col items-center gap-2 text-center">
-        <p className="text-white/50 text-sm">
-          {today.toLocaleDateString(undefined, {
-            weekday: "long",
-            month: "long",
-            day: "numeric",
-          })}
-        </p>
-        <ProgressRing progress={overallRatio} color="#0A84FF" size={88} strokeWidth={8} />
-        <p className="text-white/50 text-sm">
-          {Math.round(overallRatio * 100)}% of today&apos;s habits
-        </p>
-      </header>
+    <div className="max-w-3xl mx-auto p-6 space-y-8 dir-rtl">
+      <h1 className="text-3xl font-bold text-center text-gray-800 dark:text-white">متابع العادات اليومية</h1>
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Today</h1>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="w-9 h-9 rounded-full bg-white/10 text-lg"
-          aria-label="add habit"
-        >
-          +
-        </button>
-      </div>
-
-      {activeHabits.length === 0 ? (
-        <p className="text-white/40 text-center pt-10">No habits yet. Tap + to add one.</p>
-      ) : (
-        <div className="space-y-3">
-          {activeHabits.map((habit) => (
-            <HabitCard
-              key={habit.id}
-              habit={habit}
-              log={logByHabit.get(habit.id)}
-              dateStr={todayStr}
-            />
-          ))}
+      {/* نموذج إضافة عادة جديدة */}
+      <form onSubmit={handleAddHabit} className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-md space-y-4">
+        <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-200">إضافة عادة جديدة</h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <input
+            type="text"
+            placeholder="اسم العادة (مثلاً: قراءة القرآن)"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="p-3 border rounded-xl dark:bg-gray-700 dark:text-white"
+            required
+          />
+          <input
+            type="number"
+            placeholder="الهدف المطلوب (مثلاً: 20)"
+            value={targetCount}
+            onChange={(e) => setTargetCount(Number(e.target.value))}
+            className="p-3 border rounded-xl dark:bg-gray-700 dark:text-white"
+            min="1"
+            required
+          />
+          <input
+            type="text"
+            placeholder="الوحدة (صفحة، دقيقة...)"
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+            className="p-3 border rounded-xl dark:bg-gray-700 dark:text-white"
+            required
+          />
         </div>
-      )}
 
-      {showAdd && <AddHabitModal onClose={() => setShowAdd(false)} />}
-    </main>
+        {/* تحديد الأيام */}
+        <div>
+          <label className="block text-sm font-medium mb-2 text-gray-600 dark:text-gray-300">حدد أيام العادة:</label>
+          <div className="flex flex-wrap gap-2">
+            {allDays.map((day) => (
+              <button
+                type="button"
+                key={day}
+                onClick={() => toggleDay(day)}
+                className={`px-3 py-1.5 text-sm rounded-lg border transition ${
+                  selectedDays.includes(day)
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                }`}
+              >
+                {day}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition"
+        >
+          إضافة العادة
+        </button>
+      </form>
+
+      {/* قائمة العادات */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-200">عادات اليوم:</h2>
+        {habits.length === 0 ? (
+          <p className="text-gray-500 text-center py-4">لا توجد عادات مضافة بعد.</p>
+        ) : (
+          habits.map((habit) => {
+            const percentage = Math.round((habit.completedCount / habit.targetCount) * 100);
+            return (
+              <div
+                key={habit.id}
+                className="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow border border-gray-100 dark:border-gray-700 flex flex-col md:flex-row items-center justify-between gap-4"
+              >
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800 dark:text-white">{habit.title}</h3>
+                  <p className="text-sm text-gray-500">
+                    الأيام المحددة: {habit.days.join('، ') || 'كل الأيام'}
+                  </p>
+                  <p className="text-sm font-semibold text-blue-600 mt-1">
+                    الإنجاز: {habit.completedCount} / {habit.targetCount} {habit.unit} ({percentage}%)
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    value={habit.completedCount}
+                    onChange={(e) => handleSetCount(habit.id, Number(e.target.value))}
+                    className="w-20 p-2 border rounded-lg text-center dark:bg-gray-700 dark:text-white"
+                    min="0"
+                    max={habit.targetCount}
+                  />
+                  <button
+                    onClick={() => handleIncrement(habit.id)}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition"
+                  >
+                    +1 {habit.unit}
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
   );
 }
