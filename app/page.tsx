@@ -1,24 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
-
-// إعدادات Firebase الخاصة بمشروعك
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-};
-
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const auth = getAuth(app);
-const db = getFirestore(app);
-const googleProvider = new GoogleAuthProvider();
+import { auth, db, googleProvider } from '@/lib/firebase';
+import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 export interface Habit {
   id: string;
@@ -34,18 +19,15 @@ export default function HomePage() {
   const [user, setUser] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // نموذج إضافة عادة
   const [title, setTitle] = useState('');
   const [targetCount, setTargetCount] = useState<number>(10);
   const [unit, setUnit] = useState('صفحة');
 
-  // 1. الاستماع لحالة تسجيل الدخول وجلب البيانات السحابية الحقيقية
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
 
       if (currentUser) {
-        // عند وجود مستخدم: المزامنة مباشرة مع Firestore باستخدام إيميل المستخدم
         const userDocRef = doc(db, 'users', currentUser.uid);
         const unsubscribeSnapshot = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists() && docSnap.data().habits) {
@@ -54,7 +36,6 @@ export default function HomePage() {
         });
         return () => unsubscribeSnapshot();
       } else {
-        // في حال عدم تسجيل الدخول: الاعتماد على الذاكرة المحلية
         const savedHabits = localStorage.getItem('habit_tracker_data');
         if (savedHabits) setHabits(JSON.parse(savedHabits));
       }
@@ -63,7 +44,6 @@ export default function HomePage() {
     return () => unsubscribeAuth();
   }, []);
 
-  // 2. حفظ العادات سحابياً عند أي تعديل إذا كان المستخدم مسجلاً
   const saveHabitsData = async (updatedHabits: Habit[]) => {
     setHabits(updatedHabits);
     if (user) {
@@ -207,7 +187,7 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* زر إضافة عادت جديدة */}
+      {/* زر إضافة عادة جديد */}
       <button
         onClick={() => setIsModalOpen(true)}
         className="fixed bottom-6 left-6 w-14 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-2xl text-3xl font-bold flex items-center justify-center transition-transform hover:scale-110 active:scale-95"
