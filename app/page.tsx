@@ -61,8 +61,9 @@ export default function HomePage() {
   const handleGoogleLogin = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      console.error('خطأ في تسجيل الدخول:', error);
+    } catch (error: any) {
+      console.error('خطأ تسجيل الدخول:', error);
+      alert(`سبب عدم فتح النافذة:\n${error.code}\n${error.message}`);
     }
   };
 
@@ -187,7 +188,7 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* زر إضافة عادة جديد */}
+      {/* زر إضافة عادة جديدة */}
       <button
         onClick={() => setIsModalOpen(true)}
         className="fixed bottom-6 left-6 w-14 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-2xl text-3xl font-bold flex items-center justify-center transition-transform hover:scale-110 active:scale-95"
