@@ -3,12 +3,13 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: "ضع_هنا_API_KEY",
+  apiKey: "AIzaSyA_vYliSOjqoewmUmd1uckZsCSzpB8WwjM",
   authDomain: "habit-1affd.firebaseapp.com",
   projectId: "habit-1affd",
-  storageBucket: "habit-1affd.appspot.com",
-  messagingSenderId: "ضع_هنا_المعرف",
-  appId: "ضع_هنا_APP_ID",
+  storageBucket: "habit-1affd.firebasestorage.app",
+  messagingSenderId: "986390418060",
+  appId: "1:986390418060:web:8fc6a6a28287673ef661a9",
+  measurementId: "G-6LF2HRJ4ES"
 };
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
