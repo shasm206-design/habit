@@ -1,22 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'firebase/auth';
-
-// إعدادات Firebase من ملفك
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-};
-
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
 
 export interface Habit {
   id: string;
@@ -29,40 +13,42 @@ export interface Habit {
 
 export default function HomePage() {
   const [habits, setHabits] = useState<Habit[]>([]);
-  const [user, setUser] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   // نموذج إضافة عادة
   const [title, setTitle] = useState('');
-  const [type, setType] = useState<'counter' | 'timer' | 'boolean'>('counter');
   const [targetCount, setTargetCount] = useState<number>(10);
   const [unit, setUnit] = useState('صفحة');
 
-  // متابعة حالة تسجيل الدخول عبر قوقل
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
     const savedHabits = localStorage.getItem('habit_tracker_data');
+    const savedEmail = localStorage.getItem('habit_tracker_user_email');
     if (savedHabits) setHabits(JSON.parse(savedHabits));
-    return () => unsubscribe();
+    if (savedEmail) {
+      setUserEmail(savedEmail);
+      setIsLoggedIn(true);
+    }
   }, []);
 
   useEffect(() => {
     localStorage.setItem('habit_tracker_data', JSON.stringify(habits));
   }, [habits]);
 
-  // تسجيل الدخول بضغطة زر عبر قوقل
-  const handleGoogleLogin = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      console.error("خطأ في تسجيل الدخول عبر قوقل:", error);
+  const handleSimulatedGoogleLogin = () => {
+    const email = prompt('أدخل بريدك الإلكتروني للتسجيل والمزامنة:');
+    if (email) {
+      setUserEmail(email);
+      setIsLoggedIn(true);
+      localStorage.setItem('habit_tracker_user_email', email);
     }
   };
 
   const handleLogout = () => {
-    signOut(auth);
+    setIsLoggedIn(false);
+    setUserEmail('');
+    localStorage.removeItem('habit_tracker_user_email');
   };
 
   const handleAddHabit = (e: React.FormEvent) => {
@@ -72,10 +58,10 @@ export default function HomePage() {
     const newHabit: Habit = {
       id: Date.now().toString(),
       title,
-      type,
-      targetCount: type === 'boolean' ? 1 : Number(targetCount) || 1,
+      type: 'counter',
+      targetCount: Number(targetCount) || 1,
       completedCount: 0,
-      unit: type === 'boolean' ? 'مرة' : type === 'timer' ? 'دقيقة' : unit,
+      unit,
     };
 
     setHabits((prev) => [...prev, newHabit]);
@@ -98,28 +84,28 @@ export default function HomePage() {
 
   return (
     <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-6 dir-rtl text-right min-h-screen pb-24 text-white">
-      {/* شريط أعلى الصفحة لتسجيل الدخول عبر قوقل */}
-      <div className="flex justify-between items-center bg-gray-800 p-4 rounded-2xl border border-gray-700">
+      {/* شريط أعلى الصفحة لتسجيل الدخول */}
+      <div className="flex justify-between items-center bg-gray-800 p-4 rounded-2xl border border-gray-700 shadow-lg">
         <div>
           <h2 className="text-xs text-gray-400">حساب المزامنة</h2>
           <p className="font-bold text-sm text-blue-400">
-            {user ? user.displayName || user.email : 'غير مسجّل'}
+            {isLoggedIn ? userEmail : 'غير مسجّل'}
           </p>
         </div>
 
-        {user ? (
+        {isLoggedIn ? (
           <button
             onClick={handleLogout}
-            className="text-xs bg-red-500/20 text-red-400 px-3 py-2 rounded-xl border border-red-500/30 font-bold"
+            className="text-xs bg-red-500/20 text-red-400 px-3 py-2 rounded-xl border border-red-500/30 font-bold hover:bg-red-500/30 transition"
           >
             خروج
           </button>
         ) : (
           <button
-            onClick={handleGoogleLogin}
+            onClick={handleSimulatedGoogleLogin}
             className="flex items-center gap-2 bg-white text-gray-800 px-4 py-2 rounded-xl font-bold text-xs hover:bg-gray-100 transition shadow"
           >
-            <span>تسجيل الدخول عبر Google</span>
+            <span>تسجيل الدخول بالبريد الإلكتروني 🔐</span>
           </button>
         )}
       </div>
@@ -180,7 +166,7 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* زر (+) */}
+      {/* زر إضافة عادت جديدة */}
       <button
         onClick={() => setIsModalOpen(true)}
         className="fixed bottom-6 left-6 w-14 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-2xl text-3xl font-bold flex items-center justify-center transition-transform hover:scale-110 active:scale-95"
