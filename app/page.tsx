@@ -32,6 +32,7 @@ export default function Home() {
   const [dailyData, setDailyData] = useState<{ [date: string]: DayProgress }>({});
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [isEditMode, setIsEditMode] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // Modals
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -104,6 +105,23 @@ export default function Home() {
     saveData(habits, updatedDaily);
   };
 
+  // معالجة السحب والإفلات المباشر
+  const handleDragStart = (index: number) => {
+    if (!isEditMode) return;
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+    const updatedHabits = [...habits];
+    const draggedItem = updatedHabits[draggedIndex];
+    updatedHabits.splice(draggedIndex, 1);
+    updatedHabits.splice(index, 0, draggedItem);
+    setDraggedIndex(index);
+    saveData(updatedHabits, dailyData);
+  };
+
   const handleSaveHabit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -128,16 +146,6 @@ export default function Home() {
     setTitle('');
     setEditingHabit(null);
     setIsAddModalOpen(false);
-  };
-
-  const moveHabit = (index: number, direction: 'up' | 'down') => {
-    const newHabits = [...habits];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= newHabits.length) return;
-    const temp = newHabits[index];
-    newHabits[index] = newHabits[targetIndex];
-    newHabits[targetIndex] = temp;
-    saveData(newHabits, dailyData);
   };
 
   const deleteHabit = (id: string) => {
@@ -188,7 +196,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* شريط الإنجاز والكأس المخصص */}
+      {/* شريط الإنجاز والكأس */}
       <div className="bg-gradient-to-r from-[#b38600] to-[#d99b00] text-black p-4 rounded-3xl flex justify-between items-center px-6 shadow-2xl mb-8">
         <div className="flex items-center gap-3">
           <span className="text-3xl">{status.trophy}</span>
@@ -201,13 +209,13 @@ export default function Home() {
           type="date" 
           value={selectedDate} 
           onChange={(e) => setSelectedDate(e.target.value)}
-          className="bg-black/20 text-black font-bold p-2 rounded-xl border border-black/10 outline-none text-xs"
+          className="bg-black/20 text-black font-bold p-2 rounded-xl border border-black/10 outline-none text-xs cursor-pointer"
         />
       </div>
 
-      {/* شريط أدوات العادات وزر التعديل */}
+      {/* شريط أدوات العادات */}
       <div className="flex justify-between items-center mb-4 px-2">
-        <h2 className="text-2xl font-bold">عاداتي</h2>
+        <h2 className="text-2xl font-bold">عاداتي {isEditMode && <span className="text-xs text-blue-400 font-normal">(اسحب العادة لترتيبها)</span>}</h2>
         <button
           onClick={() => setIsEditMode(!isEditMode)}
           className={`text-xs px-3 py-1.5 rounded-xl font-bold transition ${
@@ -218,7 +226,7 @@ export default function Home() {
         </button>
       </div>
 
-      {/* قائمة بطاقات العادات المتكيفة مع PC والجوال */}
+      {/* قائمة بطاقات العادات بالسحب والإفلات */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {habits.length === 0 ? (
           <div className="col-span-full text-center py-12 text-gray-500 text-sm bg-[#232d38] rounded-3xl border border-dashed border-gray-700">
@@ -231,15 +239,20 @@ export default function Home() {
             return (
               <div
                 key={habit.id}
+                draggable={isEditMode}
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={(e) => handleDragOver(e, index)}
                 style={{ backgroundColor: habit.color || '#7f2a2d' }}
-                className="p-4 rounded-3xl flex justify-between items-center shadow-lg border border-white/10 transition hover:brightness-105"
+                className={`p-4 rounded-3xl flex justify-between items-center shadow-lg border border-white/10 transition ${
+                  isEditMode ? 'cursor-grab active:cursor-grabbing border-blue-400' : 'hover:brightness-105'
+                }`}
               >
                 <div
                   onClick={() => !isEditMode && setActiveHabitCounter(habit)}
                   className="flex items-center gap-3 cursor-pointer flex-1"
                 >
                   <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">
-                    🔖
+                    {isEditMode ? '☰' : '🔖'}
                   </div>
                   <div>
                     <span className="font-bold text-base block">{habit.title}</span>
@@ -249,8 +262,6 @@ export default function Home() {
 
                 {isEditMode ? (
                   <div className="flex items-center gap-1.5 bg-black/40 p-1.5 rounded-2xl">
-                    <button onClick={() => moveHabit(index, 'up')} className="px-2 py-1 bg-gray-700 rounded-lg text-xs">▲</button>
-                    <button onClick={() => moveHabit(index, 'down')} className="px-2 py-1 bg-gray-700 rounded-lg text-xs">▼</button>
                     <button
                       onClick={() => {
                         setEditingHabit(habit);
@@ -260,9 +271,9 @@ export default function Home() {
                         setSelectedColor(habit.color);
                         setIsAddModalOpen(true);
                       }}
-                      className="px-2 py-1 bg-blue-600 rounded-lg text-xs"
+                      className="px-2.5 py-1 bg-blue-600 rounded-lg text-xs font-bold"
                     >
-                      ✏️
+                      تعديل
                     </button>
                     <button onClick={() => deleteHabit(habit.id)} className="px-2 py-1 bg-red-600 rounded-lg text-xs">🗑️</button>
                   </div>
@@ -275,7 +286,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* زر إضافة عادة مائل في الأسفل */}
+      {/* زر إضافة عادة */}
       <button
         onClick={() => {
           setEditingHabit(null);
@@ -287,7 +298,7 @@ export default function Home() {
         +
       </button>
 
-      {/* نافذة العداد التفاعلي */}
+      {/* نافذة العداد */}
       {activeHabitCounter && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex flex-col justify-between p-6 z-50 text-center">
           <div className="flex justify-between items-center max-w-md mx-auto w-full">
