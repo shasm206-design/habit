@@ -2,15 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  signInWithPopup, 
-  signInWithRedirect, 
-  getRedirectResult, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged, 
   User 
 } from 'firebase/auth';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
-import { auth, db, googleProvider } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
 
 export interface Habit {
   id: string;
@@ -25,26 +24,17 @@ export default function Home() {
   const [loading, setLoading] = useState<boolean>(true);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
 
+  // بيانات النموذج (تسجيل الدخول / العادات)
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [title, setTitle] = useState('');
   const [targetCount, setTargetCount] = useState<number>(10);
   const [unit, setUnit] = useState('صفحة');
 
-  // متابعة حالة المستخدم وتلقي نتيجة الـ Redirect
   useEffect(() => {
-    const handleRedirect = async () => {
-      try {
-        const result = await getRedirectResult(auth);
-        if (result?.user) {
-          console.log('تم تسجيل الدخول بنجاح عبر Redirect:', result.user);
-        }
-      } catch (error: any) {
-        console.error('خطأ في نتيجة Redirect:', error);
-      }
-    };
-
-    handleRedirect();
-
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
@@ -80,23 +70,20 @@ export default function Home() {
     }
   };
 
-  // تسجيل الدخول مع معالجة حظر النافذة
-  const handleGoogleLogin = async () => {
+  // التعامل مع تسجيل الدخول وإنشاء الحساب بالبريد
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error: any) {
-      if (
-        error.code === 'auth/popup-blocked' || 
-        error.code === 'auth/cancelled-popup-request'
-      ) {
-        console.log('النافذة المنبثقة محظورة، يتم التحويل إلى Redirect...');
-        await signInWithRedirect(auth, googleProvider);
-      } else if (error.code === 'auth/popup-closed-by-user') {
-        console.log('تم إغلاق النافذة بواسطة المستخدم');
+      if (isSignUp) {
+        await createUserWithEmailAndPassword(auth, email, password);
       } else {
-        console.error('Login error:', error);
-        alert(`خطأ في تسجيل الدخول: ${error.message}`);
+        await signInWithEmailAndPassword(auth, email, password);
       }
+      setEmail('');
+      setPassword('');
+      setIsAuthModalOpen(false);
+    } catch (error: any) {
+      alert(`خطأ: ${error.message}`);
     }
   };
 
@@ -104,7 +91,7 @@ export default function Home() {
     try {
       await signOut(auth);
     } catch (error: any) {
-      alert(`حدث خطأ أثناء تسجيل الخروج: ${error.message}`);
+      alert(`خطأ أثناء تسجيل الخروج: ${error.message}`);
     }
   };
 
@@ -133,6 +120,11 @@ export default function Home() {
     saveHabitsData(updated);
   };
 
+  const deleteHabit = (id: string) => {
+    const updated = habits.filter((h) => h.id !== id);
+    saveHabitsData(updated);
+  };
+
   const totalPercentage =
     habits.length === 0
       ? 0
@@ -142,15 +134,17 @@ export default function Home() {
 
   return (
     <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-6 dir-rtl text-right min-h-screen pb-24 text-white bg-[#0d1117]" dir="rtl">
+      
+      {/* شريط الحساب والمزامنة */}
       <div className="flex justify-between items-center bg-[#161b22] p-4 rounded-2xl border border-gray-800 shadow-lg">
         <div>
           <h2 className="text-xs text-gray-400">حساب المزامنة</h2>
           {loading ? (
             <p className="font-bold text-sm text-gray-400">جاري التحقق...</p>
           ) : user ? (
-            <p className="font-bold text-sm text-green-400">{user.displayName || user.email}</p>
+            <p className="font-bold text-sm text-green-400">{user.email}</p>
           ) : (
-            <p className="font-bold text-sm text-red-400">غير مسجّل</p>
+            <p className="font-bold text-sm text-red-400">غير مسجّل (حفظ محلي)</p>
           )}
         </div>
 
@@ -163,14 +157,15 @@ export default function Home() {
           </button>
         ) : (
           <button
-            onClick={handleGoogleLogin}
-            className="flex items-center gap-2 bg-white text-gray-800 px-4 py-2 rounded-xl font-bold text-xs hover:bg-gray-100 transition shadow"
+            onClick={() => setIsAuthModalOpen(true)}
+            className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl font-bold text-xs transition shadow"
           >
-            <span>تسجيل الدخول للمزامنة 🔐</span>
+            تسجيل الدخول / حساب جديد 🔐
           </button>
         )}
       </div>
 
+      {/* نسبة الإنجاز اليومية */}
       <div className="bg-[#161b22] p-6 rounded-2xl border border-gray-800 shadow-xl space-y-3">
         <div className="flex justify-between items-center">
           <span className="font-bold text-lg">نسبة إنجاز اليوم الكلية</span>
@@ -184,6 +179,7 @@ export default function Home() {
         </div>
       </div>
 
+      {/* قائمة العادات */}
       <div className="space-y-4">
         <h3 className="text-xl font-bold">عاداتك اليومية</h3>
         {habits.length === 0 ? (
@@ -210,13 +206,19 @@ export default function Home() {
                     type="number"
                     value={habit.completedCount}
                     onChange={(e) => updateProgress(habit.id, Number(e.target.value))}
-                    className="w-16 bg-gray-800 border border-gray-700 p-2 text-center rounded-xl outline-none"
+                    className="w-16 bg-gray-800 border border-gray-700 p-2 text-center rounded-xl outline-none text-white"
                   />
                   <button
                     onClick={() => updateProgress(habit.id, habit.completedCount + 1)}
                     className="bg-blue-600 hover:bg-blue-500 px-3 py-2 rounded-xl text-sm font-bold"
                   >
                     +1
+                  </button>
+                  <button
+                    onClick={() => deleteHabit(habit.id)}
+                    className="text-red-400 hover:text-red-300 p-2 text-sm"
+                  >
+                    🗑️
                   </button>
                 </div>
               </div>
@@ -225,6 +227,7 @@ export default function Home() {
         )}
       </div>
 
+      {/* زر إضافة عادة */}
       <button
         onClick={() => setIsModalOpen(true)}
         className="fixed bottom-6 left-6 w-14 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-2xl text-3xl font-bold flex items-center justify-center transition-transform hover:scale-110 active:scale-95"
@@ -232,6 +235,63 @@ export default function Home() {
         +
       </button>
 
+      {/* نافذة تسجيل الدخول / إنشاء حساب */}
+      {isAuthModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#161b22] border border-gray-800 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl">
+            <div className="flex justify-between items-center">
+              <h3 className="text-xl font-bold">{isSignUp ? 'إنشاء حساب جديد' : 'تسجيل الدخول'}</h3>
+              <button onClick={() => setIsAuthModalOpen(false)} className="text-gray-400 font-bold">✕</button>
+            </div>
+
+            <form onSubmit={handleAuth} className="space-y-4">
+              <div>
+                <label className="text-sm text-gray-300 block mb-1">البريد الإلكتروني</label>
+                <input
+                  type="email"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 p-3 rounded-xl outline-none text-white"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-gray-300 block mb-1">كلمة المرور</label>
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 p-3 rounded-xl outline-none text-white"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition"
+              >
+                {isSignUp ? 'إنشاء الحساب' : 'دخول'}
+              </button>
+            </form>
+
+            <div className="text-center text-xs text-gray-400">
+              {isSignUp ? 'لديك حساب بالفعل؟ ' : 'ليس لديك حساب؟ '}
+              <button
+                type="button"
+                onClick={() => setIsSignUp(!isSignUp)}
+                className="text-blue-400 underline font-bold"
+              >
+                {isSignUp ? 'تسجيل الدخول' : 'إنشاء حساب جديد'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* نافذة إضافة عادة */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#161b22] border border-gray-800 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl">
@@ -245,10 +305,10 @@ export default function Home() {
                 <label className="text-sm text-gray-300 block mb-1">اسم المهمة</label>
                 <input
                   type="text"
-                  placeholder="مثلاً: قراءة القرآن"
+                  placeholder="مثلاً: قراءة كتاب"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 p-3 rounded-xl outline-none"
+                  className="w-full bg-gray-800 border border-gray-700 p-3 rounded-xl outline-none text-white"
                   required
                 />
               </div>
@@ -260,7 +320,7 @@ export default function Home() {
                     type="number"
                     value={targetCount}
                     onChange={(e) => setTargetCount(Number(e.target.value))}
-                    className="w-full bg-gray-800 border border-gray-700 p-3 rounded-xl outline-none"
+                    className="w-full bg-gray-800 border border-gray-700 p-3 rounded-xl outline-none text-white"
                     min="1"
                     required
                   />
@@ -271,7 +331,7 @@ export default function Home() {
                     type="text"
                     value={unit}
                     onChange={(e) => setUnit(e.target.value)}
-                    className="w-full bg-gray-800 border border-gray-700 p-3 rounded-xl outline-none"
+                    className="w-full bg-gray-800 border border-gray-700 p-3 rounded-xl outline-none text-white"
                     required
                   />
                 </div>
