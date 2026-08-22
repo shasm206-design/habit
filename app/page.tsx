@@ -15,11 +15,11 @@ import { auth, db, googleProvider } from '../lib/firebase';
 export interface Habit {
   id: string;
   title: string;
-  type: 'عداد' | 'مؤقت' | 'نصوص' | 'مهمة';
+  type: 'عداد' | 'مؤقت' | 'مهمة';
   targetCount: number;
   unit: string;
   color: string;
-  repeatDays: number[]; // 0: Sunday, 1: Monday ... 6: Saturday
+  repeatDays: number[];
 }
 
 export interface DayProgress {
@@ -56,7 +56,7 @@ export default function Home() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [title, setTitle] = useState('');
-  const [habitType, setHabitType] = useState<'عداد' | 'مؤقت' | 'نصوص' | 'مهمة'>('عداد');
+  const [habitType, setHabitType] = useState<'عداد' | 'مؤقت' | 'مهمة'>('عداد');
   const [targetCount, setTargetCount] = useState<number>(10);
   const [unit, setUnit] = useState('صفحة');
   const [selectedColor, setSelectedColor] = useState(COLOR_OPTIONS[0]);
@@ -105,7 +105,6 @@ export default function Home() {
     }
   };
 
-  // فلترة العادات المعروضة بحسب يوم الأسبوع المحدد في التاريخ
   const getSelectedDayOfWeek = () => {
     if (!selectedDate) return 0;
     return new Date(selectedDate).getDay();
@@ -146,7 +145,7 @@ export default function Home() {
 
   const toggleDaySelection = (dayId: number) => {
     if (selectedDays.includes(dayId)) {
-      if (selectedDays.length === 1) return; // يمنع إزالة كافة الأيام
+      if (selectedDays.length === 1) return;
       setSelectedDays(selectedDays.filter((d) => d !== dayId));
     } else {
       setSelectedDays([...selectedDays, dayId]);
@@ -269,7 +268,7 @@ export default function Home() {
         </button>
       </div>
 
-      {/* قائمة بطاقات العادات المعروضة بناءً على اليوم المحدد */}
+      {/* قائمة بطاقات العادات */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {visibleHabits.length === 0 ? (
           <div className="col-span-full text-center py-12 text-gray-500 text-sm bg-[#232d38] rounded-3xl border border-dashed border-gray-700">
@@ -396,11 +395,11 @@ export default function Home() {
                 />
               </div>
 
-              {/* شريط اختيار نوع العادة (مهمة / نصوص / مؤقت / عداد) */}
+              {/* شريط اختيار نوع العادة (مهمة / مؤقت / عداد) */}
               <div>
                 <label className="text-xs text-gray-400 block mb-2">نوع العادة</label>
-                <div className="grid grid-cols-4 gap-1.5 bg-[#171d24] p-1.5 rounded-2xl border border-gray-700 text-center text-xs font-bold">
-                  {(['مهمة', 'نصوص', 'مؤقت', 'عداد'] as const).map((t) => (
+                <div className="grid grid-cols-3 gap-2 bg-[#171d24] p-1.5 rounded-2xl border border-gray-700 text-center text-xs font-bold">
+                  {(['مهمة', 'مؤقت', 'عداد'] as const).map((t) => (
                     <button
                       key={t}
                       type="button"
@@ -415,7 +414,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* تحديد الهدف بحسب النوع (Slider) */}
+              {/* تحديد الهدف بحسب النوع */}
               {(habitType === 'عداد' || habitType === 'مؤقت') && (
                 <div className="space-y-2 bg-[#171d24] p-4 rounded-2xl border border-gray-700">
                   <div className="flex justify-between items-center text-xs">
@@ -469,7 +468,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* اختيار أيام الظهور (S M T W T F S) */}
+              {/* اختيار أيام الظهور */}
               <div>
                 <label className="text-xs text-gray-400 block mb-1">أيام الظهور</label>
                 <p className="text-[10px] text-gray-500 mb-2">اختر الأيام التي تظهر فيها هذه العادة</p>
