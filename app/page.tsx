@@ -127,6 +127,13 @@ export default function Home() {
     saveData(habits, updatedDaily);
   };
 
+  const toggleQuickComplete = (e: React.MouseEvent, habit: Habit) => {
+    e.stopPropagation();
+    const currentCount = getHabitCount(habit.id);
+    const isCompleted = currentCount >= habit.targetCount;
+    updateHabitCount(habit.id, isCompleted ? 0 : habit.targetCount);
+  };
+
   const handleDragStart = (index: number) => {
     if (!isEditMode) return;
     setDraggedIndex(index);
@@ -268,7 +275,7 @@ export default function Home() {
         </button>
       </div>
 
-      {/* قائمة بطاقات العادات المصممة باحترافية */}
+      {/* قائمة بطاقات العادات */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {visibleHabits.length === 0 ? (
           <div className="col-span-full text-center py-12 text-gray-500 text-sm bg-[#1a222d] rounded-3xl border border-dashed border-gray-800">
@@ -288,7 +295,7 @@ export default function Home() {
                 onDragOver={(e) => handleDragOver(e, index)}
                 className={`p-4 rounded-3xl flex justify-between items-center shadow-md transition border ${
                   isCompleted 
-                    ? 'bg-emerald-600/90 border-emerald-400/50 text-white shadow-emerald-900/30' 
+                    ? 'bg-emerald-600 text-white border-emerald-400/50 shadow-emerald-900/30' 
                     : 'bg-[#1e2633] border-gray-700/60 hover:border-gray-600'
                 } ${isEditMode ? 'cursor-grab active:cursor-grabbing border-blue-400' : ''}`}
               >
@@ -296,14 +303,7 @@ export default function Home() {
                   onClick={() => !isEditMode && setActiveHabitCounter(habit)}
                   className="flex items-center gap-3 cursor-pointer flex-1"
                 >
-                  {/* الأيقونة الملونة المقتصرة على شكل النمط المحدد */}
-                  <div 
-                    style={{ backgroundColor: isCompleted ? '#ffffff33' : `${habit.color || '#3b82f6'}25`, color: isCompleted ? '#ffffff' : habit.color || '#3b82f6' }}
-                    className="w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-sm border border-white/10"
-                  >
-                    {isCompleted ? '✓' : isEditMode ? '☰' : '📊'}
-                  </div>
-                  <div>
+                  <div className="text-right">
                     <span className="font-bold text-base block">{habit.title}</span>
                     <span className={`text-xs ${isCompleted ? 'text-emerald-100' : 'text-gray-400'}`}>
                       {count} / {habit.targetCount} {habit.unit}
@@ -331,14 +331,28 @@ export default function Home() {
                     <button onClick={() => deleteHabit(habit.id)} className="px-2 py-1 bg-red-600 rounded-lg text-xs">🗑️</button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    {isCompleted && <span className="text-sm">🔥 1</span>}
-                    <span 
-                      style={{ color: isCompleted ? '#ffffff' : habit.color || '#3b82f6' }}
-                      className="font-black text-lg tracking-wider"
+                  <div className="flex items-center gap-3">
+                    {!isCompleted && (
+                      <span 
+                        style={{ color: habit.color || '#3b82f6' }}
+                        className="font-black text-base tracking-wider"
+                      >
+                        %{pct}
+                      </span>
+                    )}
+
+                    {/* زر الصح الدائري لإكمال أوتصفير العادة بنقرة واحدة */}
+                    <button
+                      type="button"
+                      onClick={(e) => toggleQuickComplete(e, habit)}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-transform active:scale-90 border ${
+                        isCompleted
+                          ? 'bg-white/20 text-white border-white/40 shadow-inner'
+                          : 'bg-[#141921] border-gray-600 text-gray-400 hover:border-white'
+                      }`}
                     >
-                      %{pct}
-                    </span>
+                      ✓
+                    </button>
                   </div>
                 )}
               </div>
@@ -363,11 +377,11 @@ export default function Home() {
         +
       </button>
 
-      {/* نافذة العداد */}
+      {/* نافذة العداد التفاعلية المزودة بأزرار الإنقاص والزيادة */}
       {activeHabitCounter && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex flex-col justify-between p-6 z-50 text-center">
           <div className="flex justify-between items-center max-w-md mx-auto w-full">
-            <span className="text-gray-400 text-sm">متبقي: {activeHabitCounter.targetCount - getHabitCount(activeHabitCounter.id)}</span>
+            <span className="text-gray-400 text-sm">متبقي: {Math.max(0, activeHabitCounter.targetCount - getHabitCount(activeHabitCounter.id))}</span>
             <button onClick={() => setActiveHabitCounter(null)} className="text-gray-300 font-bold text-2xl">✕</button>
           </div>
 
@@ -379,13 +393,33 @@ export default function Home() {
               </p>
             </div>
 
-            <button
-              onClick={() => updateHabitCount(activeHabitCounter.id, getHabitCount(activeHabitCounter.id) + 1)}
-              style={{ backgroundColor: activeHabitCounter.color || '#2bbdbd' }}
-              className="w-48 h-48 rounded-full text-white text-6xl font-extrabold mx-auto flex items-center justify-center shadow-2xl border-4 border-white/20 active:scale-95 transition-transform"
-            >
-              {getHabitCount(activeHabitCounter.id)}
-            </button>
+            {/* أزرار الإنقاص (-) والزيادة (+) والعد اليدوي */}
+            <div className="flex items-center justify-center gap-6">
+              <button
+                type="button"
+                onClick={() => updateHabitCount(activeHabitCounter.id, getHabitCount(activeHabitCounter.id) - 1)}
+                className="w-16 h-16 rounded-full bg-red-600/30 text-red-400 text-3xl font-extrabold flex items-center justify-center border border-red-500/40 active:scale-90 transition"
+              >
+                -
+              </button>
+
+              <button
+                type="button"
+                onClick={() => updateHabitCount(activeHabitCounter.id, getHabitCount(activeHabitCounter.id) + 1)}
+                style={{ backgroundColor: activeHabitCounter.color || '#2bbdbd' }}
+                className="w-40 h-40 rounded-full text-white text-5xl font-extrabold flex items-center justify-center shadow-2xl border-4 border-white/20 active:scale-95 transition-transform"
+              >
+                {getHabitCount(activeHabitCounter.id)}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => updateHabitCount(activeHabitCounter.id, getHabitCount(activeHabitCounter.id) + 1)}
+                className="w-16 h-16 rounded-full bg-emerald-600/30 text-emerald-400 text-3xl font-extrabold flex items-center justify-center border border-emerald-500/40 active:scale-90 transition"
+              >
+                +
+              </button>
+            </div>
           </div>
         </div>
       )}
