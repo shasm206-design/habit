@@ -202,6 +202,12 @@ export default function Home() {
     saveData(updatedHabits, dailyData);
   };
 
+  const getHabitIcon = (type: 'عداد' | 'مؤقت' | 'مهمة') => {
+    if (type === 'مؤقت') return '⏱️';
+    if (type === 'عداد') return '📊';
+    return '🔖';
+  };
+
   const totalPercentage =
     visibleHabits.length === 0
       ? 0
@@ -275,7 +281,7 @@ export default function Home() {
         </button>
       </div>
 
-      {/* قائمة بطاقات العادات */}
+      {/* قائمة بطاقات العادات مع لون الأيقونة المخصص */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {visibleHabits.length === 0 ? (
           <div className="col-span-full text-center py-12 text-gray-500 text-sm bg-[#1a222d] rounded-3xl border border-dashed border-gray-800">
@@ -303,6 +309,17 @@ export default function Home() {
                   onClick={() => !isEditMode && setActiveHabitCounter(habit)}
                   className="flex items-center gap-3 cursor-pointer flex-1"
                 >
+                  {/* أيقونة شكل نوع العادة باللون المخصص */}
+                  <div 
+                    style={{ 
+                      backgroundColor: isCompleted ? '#ffffff33' : `${habit.color || '#3b82f6'}20`, 
+                      borderColor: isCompleted ? '#ffffff66' : `${habit.color || '#3b82f6'}50` 
+                    }}
+                    className="w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-base border shadow-sm"
+                  >
+                    {isCompleted ? '✓' : isEditMode ? '☰' : getHabitIcon(habit.type)}
+                  </div>
+
                   <div className="text-right">
                     <span className="font-bold text-base block">{habit.title}</span>
                     <span className={`text-xs ${isCompleted ? 'text-emerald-100' : 'text-gray-400'}`}>
@@ -341,7 +358,7 @@ export default function Home() {
                       </span>
                     )}
 
-                    {/* زر الصح الدائري لإكمال أوتصفير العادة بنقرة واحدة */}
+                    {/* زر الصح الدائري */}
                     <button
                       type="button"
                       onClick={(e) => toggleQuickComplete(e, habit)}
@@ -377,7 +394,7 @@ export default function Home() {
         +
       </button>
 
-      {/* نافذة العداد التفاعلية المزودة بأزرار الإنقاص والزيادة */}
+      {/* نافذة العداد */}
       {activeHabitCounter && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex flex-col justify-between p-6 z-50 text-center">
           <div className="flex justify-between items-center max-w-md mx-auto w-full">
@@ -393,7 +410,6 @@ export default function Home() {
               </p>
             </div>
 
-            {/* أزرار الإنقاص (-) والزيادة (+) والعد اليدوي */}
             <div className="flex items-center justify-center gap-6">
               <button
                 type="button"
@@ -501,7 +517,7 @@ export default function Home() {
               )}
 
               <div>
-                <label className="text-xs text-gray-400 block mb-2">لون الأيقونة والتفاصيل</label>
+                <label className="text-xs text-gray-400 block mb-2">لون أشكال العادة</label>
                 <div className="flex gap-3 justify-center">
                   {COLOR_OPTIONS.map((color) => (
                     <button
