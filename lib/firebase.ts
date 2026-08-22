@@ -3,7 +3,7 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyA_vYliSOjqocwmUmd1uckZsC5zpBBWwjM",
+  apiKey: "AIzaSyA_vYliSOjqocwmUmd1uckZsC5zpBBWwjM",
   authDomain: "habit-1affd.firebaseapp.com",
   projectId: "habit-1affd",
   storageBucket: "habit-1affd.firebasestorage.app",
