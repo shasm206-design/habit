@@ -15,9 +15,11 @@ import { auth, db, googleProvider } from '../lib/firebase';
 export interface Habit {
   id: string;
   title: string;
+  type: 'عداد' | 'مؤقت' | 'نصوص' | 'مهمة';
   targetCount: number;
   unit: string;
   color: string;
+  repeatDays: number[]; // 0: Sunday, 1: Monday ... 6: Saturday
 }
 
 export interface DayProgress {
@@ -25,6 +27,15 @@ export interface DayProgress {
 }
 
 const COLOR_OPTIONS = ['#7f2a2d', '#1e40af', '#065f46', '#9a3412', '#4c1d95'];
+const DAYS_LOOKUP = [
+  { id: 0, label: 'S' },
+  { id: 1, label: 'M' },
+  { id: 2, label: 'T' },
+  { id: 3, label: 'W' },
+  { id: 4, label: 'T' },
+  { id: 5, label: 'F' },
+  { id: 6, label: 'S' },
+];
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -45,9 +56,11 @@ export default function Home() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [title, setTitle] = useState('');
+  const [habitType, setHabitType] = useState<'عداد' | 'مؤقت' | 'نصوص' | 'مهمة'>('عداد');
   const [targetCount, setTargetCount] = useState<number>(10);
   const [unit, setUnit] = useState('صفحة');
   const [selectedColor, setSelectedColor] = useState(COLOR_OPTIONS[0]);
+  const [selectedDays, setSelectedDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
 
   useEffect(() => {
     const todayStr = new Date().toISOString().split('T')[0];
@@ -92,6 +105,16 @@ export default function Home() {
     }
   };
 
+  // فلترة العادات المعروضة بحسب يوم الأسبوع المحدد في التاريخ
+  const getSelectedDayOfWeek = () => {
+    if (!selectedDate) return 0;
+    return new Date(selectedDate).getDay();
+  };
+
+  const visibleHabits = habits.filter((h) => 
+    !h.repeatDays || h.repeatDays.includes(getSelectedDayOfWeek())
+  );
+
   const currentDayProgress = dailyData[selectedDate] || {};
 
   const getHabitCount = (habitId: string) => currentDayProgress[habitId] || 0;
@@ -105,7 +128,6 @@ export default function Home() {
     saveData(habits, updatedDaily);
   };
 
-  // معالجة السحب والإفلات المباشر
   const handleDragStart = (index: number) => {
     if (!isEditMode) return;
     setDraggedIndex(index);
@@ -122,6 +144,15 @@ export default function Home() {
     saveData(updatedHabits, dailyData);
   };
 
+  const toggleDaySelection = (dayId: number) => {
+    if (selectedDays.includes(dayId)) {
+      if (selectedDays.length === 1) return; // يمنع إزالة كافة الأيام
+      setSelectedDays(selectedDays.filter((d) => d !== dayId));
+    } else {
+      setSelectedDays([...selectedDays, dayId]);
+    }
+  };
+
   const handleSaveHabit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -129,15 +160,27 @@ export default function Home() {
     let updatedHabits: Habit[];
     if (editingHabit) {
       updatedHabits = habits.map((h) =>
-        h.id === editingHabit.id ? { ...h, title, targetCount: Number(targetCount), unit, color: selectedColor } : h
+        h.id === editingHabit.id
+          ? { 
+              ...h, 
+              title, 
+              type: habitType,
+              targetCount: Number(targetCount), 
+              unit: habitType === 'مؤقت' ? 'دقيقة' : habitType === 'مهمة' ? 'مرة' : unit, 
+              color: selectedColor,
+              repeatDays: selectedDays
+            }
+          : h
       );
     } else {
       const newHabit: Habit = {
         id: Date.now().toString(),
         title,
+        type: habitType,
         targetCount: Number(targetCount) || 1,
-        unit,
+        unit: habitType === 'مؤقت' ? 'دقيقة' : habitType === 'مهمة' ? 'مرة' : unit,
         color: selectedColor,
+        repeatDays: selectedDays,
       };
       updatedHabits = [...habits, newHabit];
     }
@@ -154,10 +197,10 @@ export default function Home() {
   };
 
   const totalPercentage =
-    habits.length === 0
+    visibleHabits.length === 0
       ? 0
       : Math.round(
-          (habits.reduce((acc, h) => acc + getHabitCount(h.id) / h.targetCount, 0) / habits.length) * 100
+          (visibleHabits.reduce((acc, h) => acc + getHabitCount(h.id) / h.targetCount, 0) / visibleHabits.length) * 100
         );
 
   const getTrophyStatus = (pct: number) => {
@@ -213,7 +256,7 @@ export default function Home() {
         />
       </div>
 
-      {/* شريط أدوات العادات */}
+      {/* شريط التحكم والتعديل */}
       <div className="flex justify-between items-center mb-4 px-2">
         <h2 className="text-2xl font-bold">عاداتي {isEditMode && <span className="text-xs text-blue-400 font-normal">(اسحب العادة لترتيبها)</span>}</h2>
         <button
@@ -226,14 +269,14 @@ export default function Home() {
         </button>
       </div>
 
-      {/* قائمة بطاقات العادات بالسحب والإفلات */}
+      {/* قائمة بطاقات العادات المعروضة بناءً على اليوم المحدد */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {habits.length === 0 ? (
+        {visibleHabits.length === 0 ? (
           <div className="col-span-full text-center py-12 text-gray-500 text-sm bg-[#232d38] rounded-3xl border border-dashed border-gray-700">
-            لا توجد عادات حالية. اضغط زر الإضافة لتأسيس قائمة مهامك!
+            لا توجد عادات مسجلة لهذا اليوم المختار.
           </div>
         ) : (
-          habits.map((habit, index) => {
+          visibleHabits.map((habit, index) => {
             const count = getHabitCount(habit.id);
             const pct = Math.round((count / habit.targetCount) * 100);
             return (
@@ -266,9 +309,11 @@ export default function Home() {
                       onClick={() => {
                         setEditingHabit(habit);
                         setTitle(habit.title);
+                        setHabitType(habit.type || 'عداد');
                         setTargetCount(habit.targetCount);
                         setUnit(habit.unit);
                         setSelectedColor(habit.color);
+                        setSelectedDays(habit.repeatDays || [0, 1, 2, 3, 4, 5, 6]);
                         setIsAddModalOpen(true);
                       }}
                       className="px-2.5 py-1 bg-blue-600 rounded-lg text-xs font-bold"
@@ -291,6 +336,10 @@ export default function Home() {
         onClick={() => {
           setEditingHabit(null);
           setTitle('');
+          setHabitType('عداد');
+          setTargetCount(10);
+          setUnit('صفحة');
+          setSelectedDays([0, 1, 2, 3, 4, 5, 6]);
           setIsAddModalOpen(true);
         }}
         className="fixed bottom-10 right-8 w-14 h-14 bg-[#3a4856] hover:bg-[#4a5a6c] text-white rounded-2xl shadow-2xl text-3xl font-bold flex items-center justify-center border border-white/20 transition active:scale-95 z-40"
@@ -324,10 +373,10 @@ export default function Home() {
         </div>
       )}
 
-      {/* نافذة إضافة أو تعديل عادة */}
+      {/* نافذة إضافة أو تعديل عادة الاحترافية */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-[#222a33] border border-gray-700 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-[#222a33] border border-gray-700 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl my-8">
             <div className="flex justify-between items-center border-b border-gray-700 pb-3">
               <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 text-sm">إلغاء</button>
               <h3 className="text-lg font-bold">{editingHabit ? 'تعديل العادة' : 'إضافة عادة جديدة'}</h3>
@@ -347,32 +396,64 @@ export default function Home() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">الهدف</label>
-                  <input
-                    type="number"
-                    value={targetCount}
-                    onChange={(e) => setTargetCount(Number(e.target.value))}
-                    className="w-full bg-[#171d24] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm"
-                    min="1"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">الوحدة</label>
-                  <input
-                    type="text"
-                    value={unit}
-                    onChange={(e) => setUnit(e.target.value)}
-                    className="w-full bg-[#171d24] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm"
-                    required
-                  />
+              {/* شريط اختيار نوع العادة (مهمة / نصوص / مؤقت / عداد) */}
+              <div>
+                <label className="text-xs text-gray-400 block mb-2">نوع العادة</label>
+                <div className="grid grid-cols-4 gap-1.5 bg-[#171d24] p-1.5 rounded-2xl border border-gray-700 text-center text-xs font-bold">
+                  {(['مهمة', 'نصوص', 'مؤقت', 'عداد'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setHabitType(t)}
+                      className={`py-2 rounded-xl transition ${
+                        habitType === t ? 'bg-[#2bbdbd] text-white shadow-lg' : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
                 </div>
               </div>
 
+              {/* تحديد الهدف بحسب النوع (Slider) */}
+              {(habitType === 'عداد' || habitType === 'مؤقت') && (
+                <div className="space-y-2 bg-[#171d24] p-4 rounded-2xl border border-gray-700">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-400">
+                      {habitType === 'مؤقت' ? 'أدخل الدقائق' : 'تحديد العدد المستهدف'}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setTargetCount(Math.max(1, targetCount - 1))}
+                        className="w-7 h-7 bg-gray-800 rounded-lg font-bold"
+                      >
+                        -
+                      </button>
+                      <span className="font-bold text-blue-400 text-sm">{targetCount}</span>
+                      <button
+                        type="button"
+                        onClick={() => setTargetCount(targetCount + 1)}
+                        className="w-7 h-7 bg-gray-800 rounded-lg font-bold"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="120"
+                    value={targetCount}
+                    onChange={(e) => setTargetCount(Number(e.target.value))}
+                    className="w-full accent-[#2bbdbd] cursor-pointer"
+                  />
+                </div>
+              )}
+
+              {/* اختيار ألوان العادة */}
               <div>
-                <label className="text-xs text-gray-400 block mb-2">اختر لون الشريط</label>
+                <label className="text-xs text-gray-400 block mb-2">اللون</label>
                 <div className="flex gap-3 justify-center">
                   {COLOR_OPTIONS.map((color) => (
                     <button
@@ -385,6 +466,29 @@ export default function Home() {
                       }`}
                     />
                   ))}
+                </div>
+              </div>
+
+              {/* اختيار أيام الظهور (S M T W T F S) */}
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">أيام الظهور</label>
+                <p className="text-[10px] text-gray-500 mb-2">اختر الأيام التي تظهر فيها هذه العادة</p>
+                <div className="flex justify-between gap-1">
+                  {DAYS_LOOKUP.map((day) => {
+                    const isSelected = selectedDays.includes(day.id);
+                    return (
+                      <button
+                        key={day.id}
+                        type="button"
+                        onClick={() => toggleDaySelection(day.id)}
+                        className={`w-10 h-10 rounded-full font-bold text-xs transition ${
+                          isSelected ? 'bg-[#2bbdbd] text-white shadow-lg scale-105' : 'bg-[#171d24] text-gray-400 border border-gray-700'
+                        }`}
+                      >
+                        {day.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </form>
