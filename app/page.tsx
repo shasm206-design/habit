@@ -26,7 +26,7 @@ export interface DayProgress {
   [habitId: string]: number;
 }
 
-const COLOR_OPTIONS = ['#7f2a2d', '#1e40af', '#065f46', '#9a3412', '#4c1d95'];
+const COLOR_OPTIONS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 const DAYS_LOOKUP = [
   { id: 0, label: 'S' },
   { id: 1, label: 'M' },
@@ -213,12 +213,12 @@ export default function Home() {
   const status = getTrophyStatus(totalPercentage);
 
   return (
-    <div className="max-w-4xl mx-auto min-h-screen bg-[#1c232b] text-white p-4 md:p-8 font-sans pb-24 dir-rtl text-right" dir="rtl">
+    <div className="max-w-4xl mx-auto min-h-screen bg-[#141921] text-white p-4 md:p-8 font-sans pb-24 dir-rtl text-right" dir="rtl">
       
       {/* الترويسة الرئيسية */}
       <div className="flex justify-between items-center mb-6 pt-2">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center font-bold text-xl shadow-lg border border-white/20">
+          <div className="w-12 h-12 rounded-full bg-blue-600/30 border border-blue-500/40 flex items-center justify-center font-bold text-xl shadow-lg">
             👤
           </div>
           <div>
@@ -260,45 +260,54 @@ export default function Home() {
         <h2 className="text-2xl font-bold">عاداتي {isEditMode && <span className="text-xs text-blue-400 font-normal">(اسحب العادة لترتيبها)</span>}</h2>
         <button
           onClick={() => setIsEditMode(!isEditMode)}
-          className={`text-xs px-3 py-1.5 rounded-xl font-bold transition ${
-            isEditMode ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+          className={`text-xs px-3.5 py-1.5 rounded-xl font-bold transition ${
+            isEditMode ? 'bg-emerald-600 text-white' : 'bg-[#1f2733] text-gray-300 hover:bg-gray-700 border border-gray-700'
           }`}
         >
           {isEditMode ? 'تم الحفظ ✔️' : 'تعديل ✏️'}
         </button>
       </div>
 
-      {/* قائمة بطاقات العادات */}
+      {/* قائمة بطاقات العادات المصممة باحترافية */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {visibleHabits.length === 0 ? (
-          <div className="col-span-full text-center py-12 text-gray-500 text-sm bg-[#232d38] rounded-3xl border border-dashed border-gray-700">
+          <div className="col-span-full text-center py-12 text-gray-500 text-sm bg-[#1a222d] rounded-3xl border border-dashed border-gray-800">
             لا توجد عادات مسجلة لهذا اليوم المختار.
           </div>
         ) : (
           visibleHabits.map((habit, index) => {
             const count = getHabitCount(habit.id);
+            const isCompleted = count >= habit.targetCount && habit.targetCount > 0;
             const pct = Math.round((count / habit.targetCount) * 100);
+
             return (
               <div
                 key={habit.id}
                 draggable={isEditMode}
                 onDragStart={() => handleDragStart(index)}
                 onDragOver={(e) => handleDragOver(e, index)}
-                style={{ backgroundColor: habit.color || '#7f2a2d' }}
-                className={`p-4 rounded-3xl flex justify-between items-center shadow-lg border border-white/10 transition ${
-                  isEditMode ? 'cursor-grab active:cursor-grabbing border-blue-400' : 'hover:brightness-105'
-                }`}
+                className={`p-4 rounded-3xl flex justify-between items-center shadow-md transition border ${
+                  isCompleted 
+                    ? 'bg-emerald-600/90 border-emerald-400/50 text-white shadow-emerald-900/30' 
+                    : 'bg-[#1e2633] border-gray-700/60 hover:border-gray-600'
+                } ${isEditMode ? 'cursor-grab active:cursor-grabbing border-blue-400' : ''}`}
               >
                 <div
                   onClick={() => !isEditMode && setActiveHabitCounter(habit)}
                   className="flex items-center gap-3 cursor-pointer flex-1"
                 >
-                  <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">
-                    {isEditMode ? '☰' : '🔖'}
+                  {/* الأيقونة الملونة المقتصرة على شكل النمط المحدد */}
+                  <div 
+                    style={{ backgroundColor: isCompleted ? '#ffffff33' : `${habit.color || '#3b82f6'}25`, color: isCompleted ? '#ffffff' : habit.color || '#3b82f6' }}
+                    className="w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-sm border border-white/10"
+                  >
+                    {isCompleted ? '✓' : isEditMode ? '☰' : '📊'}
                   </div>
                   <div>
                     <span className="font-bold text-base block">{habit.title}</span>
-                    <span className="text-xs opacity-80">{count} / {habit.targetCount} {habit.unit}</span>
+                    <span className={`text-xs ${isCompleted ? 'text-emerald-100' : 'text-gray-400'}`}>
+                      {count} / {habit.targetCount} {habit.unit}
+                    </span>
                   </div>
                 </div>
 
@@ -322,7 +331,15 @@ export default function Home() {
                     <button onClick={() => deleteHabit(habit.id)} className="px-2 py-1 bg-red-600 rounded-lg text-xs">🗑️</button>
                   </div>
                 ) : (
-                  <span className="font-extrabold text-lg tracking-wider mr-2">{pct}%</span>
+                  <div className="flex items-center gap-2">
+                    {isCompleted && <span className="text-sm">🔥 1</span>}
+                    <span 
+                      style={{ color: isCompleted ? '#ffffff' : habit.color || '#3b82f6' }}
+                      className="font-black text-lg tracking-wider"
+                    >
+                      %{pct}
+                    </span>
+                  </div>
                 )}
               </div>
             );
@@ -341,7 +358,7 @@ export default function Home() {
           setSelectedDays([0, 1, 2, 3, 4, 5, 6]);
           setIsAddModalOpen(true);
         }}
-        className="fixed bottom-10 right-8 w-14 h-14 bg-[#3a4856] hover:bg-[#4a5a6c] text-white rounded-2xl shadow-2xl text-3xl font-bold flex items-center justify-center border border-white/20 transition active:scale-95 z-40"
+        className="fixed bottom-10 right-8 w-14 h-14 bg-[#2b3648] hover:bg-[#38465c] text-white rounded-2xl shadow-2xl text-3xl font-bold flex items-center justify-center border border-white/10 transition active:scale-95 z-40"
       >
         +
       </button>
@@ -355,7 +372,7 @@ export default function Home() {
           </div>
 
           <div className="my-auto space-y-8">
-            <div className="bg-[#2a3440] p-6 rounded-3xl max-w-xs mx-auto shadow-2xl border border-gray-700">
+            <div className="bg-[#1e2633] p-6 rounded-3xl max-w-xs mx-auto shadow-2xl border border-gray-700">
               <h3 className="text-2xl font-bold">{activeHabitCounter.title}</h3>
               <p className="text-xs text-gray-400 mt-2">
                 إنجاز يوم {selectedDate}: {getHabitCount(activeHabitCounter.id)} من {activeHabitCounter.targetCount} {activeHabitCounter.unit}
@@ -364,7 +381,8 @@ export default function Home() {
 
             <button
               onClick={() => updateHabitCount(activeHabitCounter.id, getHabitCount(activeHabitCounter.id) + 1)}
-              className="w-48 h-48 rounded-full bg-[#2bbdbd] text-white text-6xl font-extrabold mx-auto flex items-center justify-center shadow-2xl border-4 border-white/20 active:scale-95 transition-transform"
+              style={{ backgroundColor: activeHabitCounter.color || '#2bbdbd' }}
+              className="w-48 h-48 rounded-full text-white text-6xl font-extrabold mx-auto flex items-center justify-center shadow-2xl border-4 border-white/20 active:scale-95 transition-transform"
             >
               {getHabitCount(activeHabitCounter.id)}
             </button>
@@ -372,11 +390,11 @@ export default function Home() {
         </div>
       )}
 
-      {/* نافذة إضافة أو تعديل عادة الاحترافية */}
+      {/* نافذة إضافة أو تعديل عادة */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-[#222a33] border border-gray-700 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl my-8">
-            <div className="flex justify-between items-center border-b border-gray-700 pb-3">
+          <div className="bg-[#1e2633] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl my-8">
+            <div className="flex justify-between items-center border-b border-gray-700/80 pb-3">
               <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 text-sm">إلغاء</button>
               <h3 className="text-lg font-bold">{editingHabit ? 'تعديل العادة' : 'إضافة عادة جديدة'}</h3>
               <button onClick={handleSaveHabit} className="text-blue-400 font-bold text-sm">حفظ</button>
@@ -390,22 +408,21 @@ export default function Home() {
                   placeholder="مثلاً: قراءة قرآن"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full bg-[#171d24] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm"
+                  className="w-full bg-[#141921] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm focus:border-blue-500"
                   required
                 />
               </div>
 
-              {/* شريط اختيار نوع العادة (مهمة / مؤقت / عداد) */}
               <div>
                 <label className="text-xs text-gray-400 block mb-2">نوع العادة</label>
-                <div className="grid grid-cols-3 gap-2 bg-[#171d24] p-1.5 rounded-2xl border border-gray-700 text-center text-xs font-bold">
+                <div className="grid grid-cols-3 gap-2 bg-[#141921] p-1.5 rounded-2xl border border-gray-700 text-center text-xs font-bold">
                   {(['مهمة', 'مؤقت', 'عداد'] as const).map((t) => (
                     <button
                       key={t}
                       type="button"
                       onClick={() => setHabitType(t)}
                       className={`py-2 rounded-xl transition ${
-                        habitType === t ? 'bg-[#2bbdbd] text-white shadow-lg' : 'text-gray-400 hover:text-white'
+                        habitType === t ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
                       }`}
                     >
                       {t}
@@ -414,9 +431,8 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* تحديد الهدف بحسب النوع */}
               {(habitType === 'عداد' || habitType === 'مؤقت') && (
-                <div className="space-y-2 bg-[#171d24] p-4 rounded-2xl border border-gray-700">
+                <div className="space-y-2 bg-[#141921] p-4 rounded-2xl border border-gray-700">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-gray-400">
                       {habitType === 'مؤقت' ? 'أدخل الدقائق' : 'تحديد العدد المستهدف'}
@@ -445,14 +461,13 @@ export default function Home() {
                     max="120"
                     value={targetCount}
                     onChange={(e) => setTargetCount(Number(e.target.value))}
-                    className="w-full accent-[#2bbdbd] cursor-pointer"
+                    className="w-full accent-blue-500 cursor-pointer"
                   />
                 </div>
               )}
 
-              {/* اختيار ألوان العادة */}
               <div>
-                <label className="text-xs text-gray-400 block mb-2">اللون</label>
+                <label className="text-xs text-gray-400 block mb-2">لون الأيقونة والتفاصيل</label>
                 <div className="flex gap-3 justify-center">
                   {COLOR_OPTIONS.map((color) => (
                     <button
@@ -460,7 +475,7 @@ export default function Home() {
                       type="button"
                       onClick={() => setSelectedColor(color)}
                       style={{ backgroundColor: color }}
-                      className={`w-10 h-10 rounded-2xl border-2 transition ${
+                      className={`w-9 h-9 rounded-2xl border-2 transition ${
                         selectedColor === color ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-80'
                       }`}
                     />
@@ -468,11 +483,9 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* اختيار أيام الظهور */}
               <div>
                 <label className="text-xs text-gray-400 block mb-1">أيام الظهور</label>
-                <p className="text-[10px] text-gray-500 mb-2">اختر الأيام التي تظهر فيها هذه العادة</p>
-                <div className="flex justify-between gap-1">
+                <div className="flex justify-between gap-1 pt-1">
                   {DAYS_LOOKUP.map((day) => {
                     const isSelected = selectedDays.includes(day.id);
                     return (
@@ -480,8 +493,8 @@ export default function Home() {
                         key={day.id}
                         type="button"
                         onClick={() => toggleDaySelection(day.id)}
-                        className={`w-10 h-10 rounded-full font-bold text-xs transition ${
-                          isSelected ? 'bg-[#2bbdbd] text-white shadow-lg scale-105' : 'bg-[#171d24] text-gray-400 border border-gray-700'
+                        className={`w-9 h-9 rounded-full font-bold text-xs transition ${
+                          isSelected ? 'bg-blue-600 text-white shadow-lg' : 'bg-[#141921] text-gray-400 border border-gray-700'
                         }`}
                       >
                         {day.label}
@@ -498,7 +511,7 @@ export default function Home() {
       {/* نافذة تسجيل الدخول */}
       {isAuthModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#222a33] border border-gray-700 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl">
+          <div className="bg-[#1e2633] border border-gray-700 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl">
             <div className="flex justify-between items-center">
               <h3 className="text-xl font-bold">{isSignUp ? 'إنشاء حساب جديد' : 'تسجيل الدخول'}</h3>
               <button onClick={() => setIsAuthModalOpen(false)} className="text-gray-400 font-bold">✕</button>
@@ -540,7 +553,7 @@ export default function Home() {
                 placeholder="البريد الإلكتروني"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-[#171d24] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm"
+                className="w-full bg-[#141921] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm"
                 required
               />
               <input
@@ -548,7 +561,7 @@ export default function Home() {
                 placeholder="كلمة المرور"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[#171d24] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm"
+                className="w-full bg-[#141921] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm"
                 required
               />
               <button type="submit" className="w-full py-3 bg-blue-600 font-bold rounded-xl">

@@ -99,26 +99,31 @@ export default function HistoryPage() {
     return new Date(selectedDate).getDay();
   };
 
-  const visibleHabits = habits.filter((h) =>
+  const currentDayProgress = dailyData[selectedDate] || {};
+
+  // تصفية المهام المنجزة فقط (التي فيها قيمة أكبر من صفر)
+  const completedHabitsForSelectedDate = habits.filter((h) => {
+    const isDayScheduled = !h.repeatDays || h.repeatDays.includes(getSelectedDayOfWeek());
+    const count = currentDayProgress[h.id] || 0;
+    return isDayScheduled && count > 0;
+  });
+
+  const allScheduledHabitsForSelectedDate = habits.filter((h) =>
     !h.repeatDays || h.repeatDays.includes(getSelectedDayOfWeek())
   );
 
-  const currentDayProgress = dailyData[selectedDate] || {};
-
-  const getHabitCount = (habitId: string) => currentDayProgress[habitId] || 0;
-
   const totalPercentage =
-    visibleHabits.length === 0
+    allScheduledHabitsForSelectedDate.length === 0
       ? 0
       : Math.round(
-          (visibleHabits.reduce((acc, h) => acc + getHabitCount(h.id) / h.targetCount, 0) / visibleHabits.length) * 100
+          (allScheduledHabitsForSelectedDate.reduce((acc, h) => acc + (currentDayProgress[h.id] || 0) / h.targetCount, 0) / allScheduledHabitsForSelectedDate.length) * 100
         );
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6 dir-rtl text-right min-h-screen pb-24 text-white bg-[#1c232b]" dir="rtl">
+    <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6 dir-rtl text-right min-h-screen pb-24 text-white bg-[#141921]" dir="rtl">
       
       {/* تقويم الشهر */}
-      <div className="bg-[#222a33] p-4 rounded-3xl border border-gray-700 shadow-lg space-y-3">
+      <div className="bg-[#1e2633] p-4 rounded-3xl border border-gray-700/60 shadow-lg space-y-3">
         <h3 className="text-xs font-bold text-gray-400">تقويم الشهر الحالي</h3>
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-700">
           {daysArray.map((dateStr) => {
@@ -130,8 +135,8 @@ export default function HistoryPage() {
                 onClick={() => setSelectedDate(dateStr)}
                 className={`min-w-[44px] h-12 rounded-2xl flex items-center justify-center font-bold text-sm transition-all ${
                   isSelected
-                    ? 'bg-[#2bbdbd] text-white shadow-lg scale-105 border border-white/20'
-                    : 'bg-[#171d24] text-gray-300 hover:bg-gray-700 border border-gray-700'
+                    ? 'bg-blue-600 text-white shadow-lg scale-105 border border-white/20'
+                    : 'bg-[#141921] text-gray-300 hover:bg-gray-700 border border-gray-700'
                 }`}
               >
                 {dayNum}
@@ -142,13 +147,13 @@ export default function HistoryPage() {
       </div>
 
       {/* تفاصيل اليوم المختار */}
-      <div className="bg-[#222a33] p-6 rounded-3xl border border-gray-700 shadow-xl space-y-5">
-        <div className="border-b border-gray-700 pb-3 flex justify-between items-center">
+      <div className="bg-[#1e2633] p-6 rounded-3xl border border-gray-700/60 shadow-xl space-y-5">
+        <div className="border-b border-gray-700/60 pb-3 flex justify-between items-center">
           <div>
-            <h2 className="text-xl font-bold text-[#2bbdbd]">تفاصيل يوم: {selectedDate}</h2>
-            <p className="text-xs text-gray-400 mt-1">ملخص الإنجازات والمهام المكتملة بناءً على هذا اليوم</p>
+            <h2 className="text-xl font-bold text-blue-400">تفاصيل يوم: {selectedDate}</h2>
+            <p className="text-xs text-gray-400 mt-1">عرض المهام المنجزة فقط في هذا اليوم</p>
           </div>
-          <div className="bg-[#171d24] px-4 py-2 rounded-2xl border border-gray-700 text-center">
+          <div className="bg-[#141921] px-4 py-2 rounded-2xl border border-gray-700 text-center">
             <span className="text-xs text-gray-400 block">إنجاز اليوم</span>
             <span className="text-xl font-extrabold text-emerald-400">{totalPercentage}%</span>
           </div>
@@ -164,29 +169,36 @@ export default function HistoryPage() {
             onChange={(e) => handleNoteChange(e.target.value)}
             placeholder="أضف ملاحظاتك أو انطباعك عن إنجاز اليوم هنا..."
             rows={3}
-            className="w-full bg-[#171d24] border border-gray-700 p-3 rounded-2xl outline-none text-white text-sm focus:border-[#2bbdbd] transition resize-none"
+            className="w-full bg-[#141921] border border-gray-700 p-3 rounded-2xl outline-none text-white text-sm focus:border-blue-500 transition resize-none"
           />
         </div>
 
-        {/* قائمة المهام المخصصة لليوم */}
+        {/* قائمة المهام المنجزة فقط */}
         <div className="space-y-3 pt-2">
-          <h4 className="font-bold text-sm text-gray-300">المهام المسجلة لليوم:</h4>
-          {visibleHabits.length === 0 ? (
-            <p className="text-gray-500 text-xs py-4 text-center bg-[#171d24] rounded-2xl border border-dashed border-gray-700">
-              لا توجد مهام حقيقية مسجلة لهذا اليوم المختار.
+          <h4 className="font-bold text-sm text-gray-300">الإنجازات المكتملة لليوم:</h4>
+          {completedHabitsForSelectedDate.length === 0 ? (
+            <p className="text-gray-500 text-xs py-6 text-center bg-[#141921] rounded-2xl border border-dashed border-gray-700">
+              لم تقم بإنجاز أي عادات بعد في هذا اليوم المختار.
             </p>
           ) : (
-            visibleHabits.map((habit) => {
-              const count = getHabitCount(habit.id);
+            completedHabitsForSelectedDate.map((habit) => {
+              const count = currentDayProgress[habit.id] || 0;
               const pct = Math.round((count / habit.targetCount) * 100);
               return (
                 <div 
                   key={habit.id} 
-                  style={{ backgroundColor: habit.color || '#7f2a2d' }}
-                  className="p-3.5 rounded-2xl flex justify-between items-center text-sm shadow-md border border-white/10"
+                  className="bg-[#141921] p-4 rounded-2xl flex justify-between items-center text-sm shadow-md border border-gray-700/60"
                 >
-                  <span className="font-bold">{habit.title}</span>
-                  <span className="text-xs bg-black/30 px-3 py-1 rounded-xl font-medium">
+                  <div className="flex items-center gap-3">
+                    <span 
+                      style={{ color: habit.color || '#3b82f6' }} 
+                      className="font-bold text-lg"
+                    >
+                      ✓
+                    </span>
+                    <span className="font-bold">{habit.title}</span>
+                  </div>
+                  <span className="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-xl font-bold">
                     {count} / {habit.targetCount} {habit.unit} ({pct}%)
                   </span>
                 </div>
