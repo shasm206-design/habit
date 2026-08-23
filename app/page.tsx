@@ -53,9 +53,29 @@ export default function Home() {
   const [selectedColor, setSelectedColor] = useState(COLOR_OPTIONS[0]);
   const [selectedDays, setSelectedDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
 
+  // دالة جلب تاريخ اليوم بالتوقيت المحلي الدقيق (YYYY-MM-DD)
+  const getLocalDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   useEffect(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     setSelectedDate(todayStr);
+
+    // فحص وتحديث اليوم تلقائياً كل دقيقة (عند تخطي منتصف الليل)
+    const interval = setInterval(() => {
+      const currentToday = getLocalDateString();
+      setSelectedDate((prevDate) => {
+        if (!prevDate || prevDate < currentToday) {
+          return currentToday;
+        }
+        return prevDate;
+      });
+    }, 60000);
 
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -77,7 +97,10 @@ export default function Home() {
       }
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+      clearInterval(interval);
+      unsubscribeAuth();
+    };
   }, []);
 
   const saveData = async (updatedHabits: Habit[], updatedDaily: { [date: string]: DayProgress }) => {
@@ -148,6 +171,9 @@ export default function Home() {
     e.preventDefault();
     if (!title.trim()) return;
 
+    const finalTarget = habitType === 'مهمة' ? 1 : Number(targetCount) || 1;
+    const finalUnit = habitType === 'مؤقت' ? 'دقيقة' : habitType === 'مهمة' ? 'مرة' : unit;
+
     let updatedHabits: Habit[];
     if (editingHabit) {
       updatedHabits = habits.map((h) =>
@@ -156,8 +182,8 @@ export default function Home() {
               ...h, 
               title, 
               type: habitType,
-              targetCount: Number(targetCount), 
-              unit: habitType === 'مؤقت' ? 'دقيقة' : habitType === 'مهمة' ? 'مرة' : unit, 
+              targetCount: finalTarget, 
+              unit: finalUnit, 
               color: selectedColor,
               repeatDays: selectedDays
             }
@@ -168,8 +194,8 @@ export default function Home() {
         id: Date.now().toString(),
         title,
         type: habitType,
-        targetCount: Number(targetCount) || 1,
-        unit: habitType === 'مؤقت' ? 'دقيقة' : habitType === 'مهمة' ? 'مرة' : unit,
+        targetCount: finalTarget,
+        unit: finalUnit,
         color: selectedColor,
         repeatDays: selectedDays,
       };
@@ -208,7 +234,7 @@ export default function Home() {
       return { 
         trophy: '🥇', 
         label: 'ممتاز', 
-        desc: 'إنجاز رفيع ومستوى متتقدم جداً',
+        desc: 'إنجاز رفيع ومستوى متقدم جداً',
         bgGradient: 'from-yellow-500 to-amber-500',
         textColor: 'text-black'
       };
@@ -321,13 +347,20 @@ export default function Home() {
                 habit={habit}
                 count={count}
                 isEditMode={isEditMode}
-                onCounterClick={() => setActiveHabitCounter(habit)}
+                onCounterClick={() => {
+                  if (habit.type === 'مهمة') {
+                    const current = getHabitCount(habit.id);
+                    updateHabitCount(habit.id, current >= 1 ? 0 : 1);
+                  } else {
+                    setActiveHabitCounter(habit);
+                  }
+                }}
                 onQuickToggle={(e) => toggleQuickComplete(e, habit)}
                 onEdit={() => {
                   setEditingHabit(habit);
                   setTitle(habit.title);
                   setHabitType(habit.type || 'عداد');
-                  setTargetCount(habit.targetCount);
+                  setTargetCount(habit.targetCount || 1);
                   setUnit(habit.unit);
                   setSelectedColor(habit.color);
                   setSelectedDays(habit.repeatDays || [0, 1, 2, 3, 4, 5, 6]);
@@ -526,7 +559,71 @@ export default function Home() {
         </div>
       )}
 
-      {/* شريط التنقل السفلي الثابت مع الصفحات الثلاث */}
+      {/* نافذة تسجيل الدخول */}
+      {isAuthModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#18202e] border border-gray-700 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl">
+            <div className="flex justify-between items-center">
+              <h3 className="text-xl font-bold">{isSignUp ? 'إنشاء حساب جديد' : 'تسجيل الدخول'}</h3>
+              <button onClick={() => setIsAuthModalOpen(false)} className="text-gray-400 font-bold">✕</button>
+            </div>
+
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await signInWithPopup(auth, googleProvider);
+                  setIsAuthModalOpen(false);
+                } catch (err: any) {
+                  alert(err.message);
+                }
+              }}
+              className="w-full py-3 bg-white text-black font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-gray-200 transition"
+            >
+              الدخول باستخدام Google
+            </button>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                try {
+                  if (isSignUp) {
+                    await createUserWithEmailAndPassword(auth, email, password);
+                  } else {
+                    await signInWithEmailAndPassword(auth, email, password);
+                  }
+                  setIsAuthModalOpen(false);
+                } catch (err: any) {
+                  alert(err.message);
+                }
+              }}
+              className="space-y-4"
+            >
+              <input
+                type="email"
+                placeholder="البريد الإلكتروني"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-[#0d131d] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm"
+                required
+              />
+              <input
+                type="password"
+                placeholder="كلمة المرور"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-[#0d131d] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm"
+                required
+              />
+              <button type="submit" className="w-full py-3 bg-blue-600 font-bold rounded-xl">
+                {isSignUp ? 'إنشاء الحساب' : 'دخول'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* شريط التنقل السفلي الثابت */}
       <div className="fixed bottom-0 left-0 right-0 bg-[#131a26]/90 backdrop-blur-lg border-t border-gray-800 py-3 px-6 flex justify-around items-center z-50">
         <Link href="/" className="flex flex-col items-center gap-1 text-blue-400 font-bold">
           <span className="text-xl">✅</span>
