@@ -44,6 +44,7 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [isEditMode, setIsEditMode] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
 
   // Modals
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -134,6 +135,16 @@ export default function Home() {
     updateHabitCount(habit.id, isCompleted ? 0 : habit.targetCount);
   };
 
+  const moveHabit = (index: number, direction: 'up' | 'down') => {
+    const newHabits = [...habits];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= newHabits.length) return;
+    const temp = newHabits[index];
+    newHabits[index] = newHabits[targetIndex];
+    newHabits[targetIndex] = temp;
+    saveData(newHabits, dailyData);
+  };
+
   const handleDragStart = (index: number) => {
     if (!isEditMode) return;
     setDraggedIndex(index);
@@ -148,6 +159,35 @@ export default function Home() {
     updatedHabits.splice(index, 0, draggedItem);
     setDraggedIndex(index);
     saveData(updatedHabits, dailyData);
+  };
+
+  // التعامل السلس مع أحداث اللمس على الجوال والسحب بدون تفعيل تحديد النصوص
+  const handleTouchStart = (e: React.TouchEvent, index: number) => {
+    if (!isEditMode) return;
+    setTouchStartY(e.touches[0].clientY);
+    setDraggedIndex(index);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent, index: number) => {
+    if (!isEditMode || touchStartY === null || draggedIndex === null) return;
+    const currentY = e.touches[0].clientY;
+    const diffY = currentY - touchStartY;
+
+    if (Math.abs(diffY) > 40) {
+      if (diffY > 0 && index < habits.length - 1) {
+        moveHabit(index, 'down');
+        setDraggedIndex(index + 1);
+      } else if (diffY < 0 && index > 0) {
+        moveHabit(index, 'up');
+        setDraggedIndex(index - 1);
+      }
+      setTouchStartY(currentY);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setTouchStartY(null);
+    setDraggedIndex(null);
   };
 
   const toggleDaySelection = (dayId: number) => {
@@ -215,7 +255,6 @@ export default function Home() {
           (visibleHabits.reduce((acc, h) => acc + getHabitCount(h.id) / h.targetCount, 0) / visibleHabits.length) * 100
         );
 
-  // احتساب التقييم والشكل واللون الدقيق بحسب النسب المحددة
   const getTrophyStatus = (pct: number) => {
     if (pct >= 95) {
       return { 
@@ -292,7 +331,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* شريط الإنجاز المتكيف بصرياً حسب التقييم والنسبة */}
+      {/* شريط الإنجاز المتكيف */}
       <div className={`bg-gradient-to-r ${status.bgGradient} ${status.textColor} p-4.5 rounded-3xl flex justify-between items-center px-6 shadow-xl mb-8 border border-white/20 transition-all duration-300`}>
         <div className="flex items-center gap-3.5">
           <span className="text-3xl filter drop-shadow">{status.trophy}</span>
@@ -316,7 +355,7 @@ export default function Home() {
 
       {/* شريط التحكم والتعديل */}
       <div className="flex justify-between items-center mb-4 px-2">
-        <h2 className="text-2xl font-bold">عاداتي {isEditMode && <span className="text-xs text-blue-400 font-normal">(اسحب العادة لترتيبها)</span>}</h2>
+        <h2 className="text-2xl font-bold">عاداتي {isEditMode && <span className="text-xs text-blue-400 font-normal">(اسحب العادة أو استخدم الأسهم للترتيب)</span>}</h2>
         <button
           onClick={() => setIsEditMode(!isEditMode)}
           className={`text-xs px-4 py-2 rounded-xl font-bold transition shadow-md ${
@@ -327,7 +366,7 @@ export default function Home() {
         </button>
       </div>
 
-      {/* قائمة بطاقات العادات */}
+      {/* قائمة العادات التي تدعم السحب والأسهم معاً */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {visibleHabits.length === 0 ? (
           <div className="col-span-full text-center py-12 text-gray-500 text-sm bg-[#131a26] rounded-3xl border border-dashed border-gray-800">
@@ -346,13 +385,16 @@ export default function Home() {
                 draggable={isEditMode}
                 onDragStart={() => handleDragStart(index)}
                 onDragOver={(e) => handleDragOver(e, index)}
-                className={`p-4 rounded-3xl flex justify-between items-center shadow-lg transition duration-200 border ${
+                onTouchStart={(e) => handleTouchStart(e, index)}
+                onTouchMove={(e) => handleTouchMove(e, index)}
+                onTouchEnd={handleTouchEnd}
+                className={`p-4 rounded-3xl flex justify-between items-center shadow-lg transition duration-200 border select-none ${
                   isOverAchieved
                     ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-teal-300/60 shadow-teal-900/40'
                     : isCompleted 
                     ? 'bg-emerald-600 text-white border-emerald-400/50 shadow-emerald-900/30' 
                     : 'bg-[#161e2c] border-gray-700/60 hover:border-gray-600'
-                } ${isEditMode ? 'cursor-grab active:cursor-grabbing border-blue-400' : ''}`}
+                } ${isEditMode ? 'border-blue-400 cursor-grab active:cursor-grabbing' : ''}`}
               >
                 <div
                   onClick={() => !isEditMode && setActiveHabitCounter(habit)}
@@ -379,6 +421,19 @@ export default function Home() {
 
                 {isEditMode ? (
                   <div className="flex items-center gap-1.5 bg-black/40 p-1.5 rounded-2xl">
+                    <button 
+                      onClick={() => moveHabit(index, 'up')} 
+                      className="w-7 h-7 bg-gray-700 hover:bg-gray-600 active:bg-blue-600 rounded-lg text-xs font-black flex items-center justify-center text-white"
+                    >
+                      ▲
+                    </button>
+                    <button 
+                      onClick={() => moveHabit(index, 'down')} 
+                      className="w-7 h-7 bg-gray-700 hover:bg-gray-600 active:bg-blue-600 rounded-lg text-xs font-black flex items-center justify-center text-white"
+                    >
+                      ▼
+                    </button>
+
                     <button
                       onClick={() => {
                         setEditingHabit(habit);
@@ -442,9 +497,9 @@ export default function Home() {
         +
       </button>
 
-      {/* نافذة العداد التفاعلية */}
+      {/* نافذة العداد */}
       {activeHabitCounter && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex flex-col justify-between p-6 z-50 text-center">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex flex-col justify-between p-6 z-50 text-center select-none">
           <div className="flex justify-between items-center max-w-md mx-auto w-full">
             <span className="text-gray-400 text-sm font-bold">
               {getHabitCount(activeHabitCounter.id) > activeHabitCounter.targetCount 
