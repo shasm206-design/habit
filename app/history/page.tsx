@@ -28,8 +28,24 @@ export default function HistoryPage() {
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [noteInput, setNoteInput] = useState<string>('');
 
+  const getLocalDateString = (dateObj = new Date()) => {
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayStr = getLocalDateString();
+  
+  // حساب تاريخ البارحة
+  const yesterdayObj = new Date();
+  yesterdayObj.setDate(yesterdayObj.getDate() - 1);
+  const yesterdayStr = getLocalDateString(yesterdayObj);
+
+  // السماح بالتعديل فقط إذا كان اليوم المحدد هو اليوم الحالي أو أمس
+  const isEditable = selectedDate === todayStr || selectedDate === yesterdayStr;
+
   useEffect(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
     setSelectedDate(todayStr);
 
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -56,7 +72,7 @@ export default function HistoryPage() {
     });
 
     return () => unsubscribeAuth();
-  }, []);
+  }, [todayStr]);
 
   useEffect(() => {
     if (selectedDate && dailyNotes) {
@@ -65,6 +81,7 @@ export default function HistoryPage() {
   }, [selectedDate, dailyNotes]);
 
   const saveNote = async (newNote: string) => {
+    if (!isEditable) return;
     const updatedNotes = { ...dailyNotes, [selectedDate]: newNote };
     setDailyNotes(updatedNotes);
 
@@ -77,6 +94,27 @@ export default function HistoryPage() {
       }
     } else {
       localStorage.setItem('habit_tracker_notes', JSON.stringify(updatedNotes));
+    }
+  };
+
+  const updateHabitCountInHistory = async (habitId: string, newCount: number) => {
+    if (!isEditable) return;
+    const currentDayProg = dailyData[selectedDate] || {};
+    const validCount = Math.max(0, newCount);
+    const updatedDay = { ...currentDayProg, [habitId]: validCount };
+    const updatedDaily = { ...dailyData, [selectedDate]: updatedDay };
+
+    setDailyData(updatedDaily);
+
+    if (user) {
+      try {
+        const userDocRef = doc(db, 'users', user.uid);
+        await setDoc(userDocRef, { dailyData: updatedDaily }, { merge: true });
+      } catch (err) {
+        console.error('خطأ في التعديل:', err);
+      }
+    } else {
+      localStorage.setItem('habit_tracker_daily', JSON.stringify(updatedDaily));
     }
   };
 
@@ -119,7 +157,7 @@ export default function HistoryPage() {
           <h1 className="text-2xl font-black bg-gradient-to-r from-blue-400 via-indigo-300 to-white bg-clip-text text-transparent">
             📅 سجل الأيام والملاحظات
           </h1>
-          <p className="text-xs text-gray-400 mt-1">استعرض إنجازاتك وملاحظاتك لأي يوم من أيام الشهر</p>
+          <p className="text-xs text-gray-400 mt-1">تعديل الإنجاز متاح ليوم أمس واليوم الحالي فقط</p>
         </div>
       </div>
 
@@ -156,8 +194,21 @@ export default function HistoryPage() {
       <div className="bg-[#161e2c] p-6 rounded-3xl border border-gray-700/60 shadow-xl space-y-6 mb-8">
         <div className="flex justify-between items-center border-b border-gray-700/60 pb-4">
           <div>
-            <h2 className="text-xl font-bold text-blue-400">تفاصيل يوم: {selectedDate}</h2>
-            <p className="text-xs text-gray-400 mt-0.5">عرض المهام المنجزة والملاحظات في هذا اليوم</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold text-blue-400">تفاصيل يوم: {selectedDate}</h2>
+              {isEditable ? (
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2.5 py-0.5 rounded-lg border border-emerald-500/30 font-bold">
+                  قابل للتعديل ✏️
+                </span>
+              ) : (
+                <span className="text-[10px] bg-gray-700/50 text-gray-400 px-2.5 py-0.5 rounded-lg border border-gray-600 font-bold">
+                  للعرض فقط 🔒
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              {isEditable ? 'يمكنك استدراك وتعديل إنجازك لهذا اليوم' : 'الأيام السابقة محفوقة للعرض ولحفظ الدقة'}
+            </p>
           </div>
           <div className="bg-[#0d131d] px-4 py-2 rounded-2xl border border-gray-700 text-center">
             <span className="text-[10px] text-gray-400 block font-bold">إنجاز اليوم</span>
@@ -170,19 +221,22 @@ export default function HistoryPage() {
           <label className="text-xs font-bold text-gray-300 block">📝 ملاحظات هذا اليوم:</label>
           <textarea
             rows={3}
-            placeholder="أضف ملاحظاتك أو انطباعك عن إنجاز اليوم هنا..."
+            disabled={!isEditable}
+            placeholder={isEditable ? "أضف ملاحظاتك أو انطباعك عن إنجاز اليوم هنا..." : "الملاحظات غير قابلة للتعديل لهذا اليوم..."}
             value={noteInput}
             onChange={(e) => {
               setNoteInput(e.target.value);
               saveNote(e.target.value);
             }}
-            className="w-full bg-[#0d131d] border border-gray-700 p-3.5 rounded-2xl outline-none text-white text-sm focus:border-blue-500 transition resize-none"
+            className={`w-full bg-[#0d131d] border border-gray-700 p-3.5 rounded-2xl outline-none text-white text-sm transition resize-none ${
+              !isEditable ? 'opacity-60 cursor-not-allowed' : 'focus:border-blue-500'
+            }`}
           />
         </div>
 
-        {/* قائمة عادات اليوم المنجزة */}
+        {/* قائمة عادات اليوم المنجزة مع إمكانية تعديل يوم أمس واليوم */}
         <div className="space-y-3">
-          <h3 className="text-sm font-bold text-gray-300">الإنجازات المكتملة لليوم:</h3>
+          <h3 className="text-sm font-bold text-gray-300">إنجاز العادات لليوم:</h3>
           {habits.length === 0 ? (
             <div className="text-center py-6 text-gray-500 text-xs bg-[#0d131d] rounded-2xl border border-dashed border-gray-800">
               لا توجد عادات مضافة.
@@ -206,9 +260,32 @@ export default function HistoryPage() {
                       <span className="text-base">{isDone ? '✅' : '⏳'}</span>
                       <span>{habit.title}</span>
                     </div>
-                    <span>
-                      {count} / {habit.targetCount} {habit.unit}
-                    </span>
+
+                    {isEditable ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateHabitCountInHistory(habit.id, count - 1)}
+                          className="w-7 h-7 bg-red-600/30 text-red-400 rounded-lg font-black text-sm flex items-center justify-center border border-red-500/30 active:scale-90"
+                        >
+                          -
+                        </button>
+                        <span className="text-white px-1 font-bold">
+                          {count} / {habit.targetCount}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateHabitCountInHistory(habit.id, count + 1)}
+                          className="w-7 h-7 bg-emerald-600/30 text-emerald-400 rounded-lg font-black text-sm flex items-center justify-center border border-emerald-500/30 active:scale-90"
+                        >
+                          +
+                        </button>
+                      </div>
+                    ) : (
+                      <span>
+                        {count} / {habit.targetCount} {habit.unit}
+                      </span>
+                    )}
                   </div>
                 );
               })}
@@ -217,7 +294,7 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* شريط التنقل السفلي الموحد */}
+      {/* شريط التنقل السفلي الثابت */}
       <div className="fixed bottom-0 left-0 right-0 bg-[#131a26]/90 backdrop-blur-lg border-t border-gray-800 py-3 px-6 flex justify-around items-center z-50">
         <Link href="/" className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition">
           <span className="text-xl">✅</span>
