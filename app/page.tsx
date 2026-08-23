@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -11,16 +12,7 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../lib/firebase';
-
-export interface Habit {
-  id: string;
-  title: string;
-  type: 'عداد' | 'مؤقت' | 'مهمة';
-  targetCount: number;
-  unit: string;
-  color: string;
-  repeatDays: number[];
-}
+import HabitCard, { Habit } from '../components/HabitCard';
 
 export interface DayProgress {
   [habitId: string]: number;
@@ -43,8 +35,6 @@ export default function Home() {
   const [dailyData, setDailyData] = useState<{ [date: string]: DayProgress }>({});
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [isEditMode, setIsEditMode] = useState(false);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [touchStartY, setTouchStartY] = useState<number | null>(null);
 
   // Modals
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -145,51 +135,6 @@ export default function Home() {
     saveData(newHabits, dailyData);
   };
 
-  const handleDragStart = (index: number) => {
-    if (!isEditMode) return;
-    setDraggedIndex(index);
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedIndex === null || draggedIndex === index) return;
-    const updatedHabits = [...habits];
-    const draggedItem = updatedHabits[draggedIndex];
-    updatedHabits.splice(draggedIndex, 1);
-    updatedHabits.splice(index, 0, draggedItem);
-    setDraggedIndex(index);
-    saveData(updatedHabits, dailyData);
-  };
-
-  // التعامل السلس مع أحداث اللمس على الجوال والسحب بدون تفعيل تحديد النصوص
-  const handleTouchStart = (e: React.TouchEvent, index: number) => {
-    if (!isEditMode) return;
-    setTouchStartY(e.touches[0].clientY);
-    setDraggedIndex(index);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent, index: number) => {
-    if (!isEditMode || touchStartY === null || draggedIndex === null) return;
-    const currentY = e.touches[0].clientY;
-    const diffY = currentY - touchStartY;
-
-    if (Math.abs(diffY) > 40) {
-      if (diffY > 0 && index < habits.length - 1) {
-        moveHabit(index, 'down');
-        setDraggedIndex(index + 1);
-      } else if (diffY < 0 && index > 0) {
-        moveHabit(index, 'up');
-        setDraggedIndex(index - 1);
-      }
-      setTouchStartY(currentY);
-    }
-  };
-
-  const handleTouchEnd = () => {
-    setTouchStartY(null);
-    setDraggedIndex(null);
-  };
-
   const toggleDaySelection = (dayId: number) => {
     if (selectedDays.includes(dayId)) {
       if (selectedDays.length === 1) return;
@@ -240,12 +185,6 @@ export default function Home() {
   const deleteHabit = (id: string) => {
     const updatedHabits = habits.filter((h) => h.id !== id);
     saveData(updatedHabits, dailyData);
-  };
-
-  const getHabitIcon = (type: 'عداد' | 'مؤقت' | 'مهمة') => {
-    if (type === 'مؤقت') return '⏱️';
-    if (type === 'عداد') return '📊';
-    return '🔖';
   };
 
   const totalPercentage =
@@ -304,7 +243,7 @@ export default function Home() {
   const status = getTrophyStatus(totalPercentage);
 
   return (
-    <div className="max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-24 dir-rtl text-right" dir="rtl">
+    <div className="max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 dir-rtl text-right select-none" dir="rtl">
       
       {/* الترويسة الرئيسية */}
       <div className="flex justify-between items-center mb-6 pt-2">
@@ -355,7 +294,7 @@ export default function Home() {
 
       {/* شريط التحكم والتعديل */}
       <div className="flex justify-between items-center mb-4 px-2">
-        <h2 className="text-2xl font-bold">عاداتي {isEditMode && <span className="text-xs text-blue-400 font-normal">(اسحب العادة أو استخدم الأسهم للترتيب)</span>}</h2>
+        <h2 className="text-2xl font-bold">عاداتي {isEditMode && <span className="text-xs text-blue-400 font-normal">(استخدم الأسهم للترتيب)</span>}</h2>
         <button
           onClick={() => setIsEditMode(!isEditMode)}
           className={`text-xs px-4 py-2 rounded-xl font-bold transition shadow-md ${
@@ -366,7 +305,7 @@ export default function Home() {
         </button>
       </div>
 
-      {/* قائمة العادات التي تدعم السحب والأسهم معاً */}
+      {/* قائمة العادات */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {visibleHabits.length === 0 ? (
           <div className="col-span-full text-center py-12 text-gray-500 text-sm bg-[#131a26] rounded-3xl border border-dashed border-gray-800">
@@ -375,107 +314,29 @@ export default function Home() {
         ) : (
           visibleHabits.map((habit, index) => {
             const count = getHabitCount(habit.id);
-            const isCompleted = count >= habit.targetCount && habit.targetCount > 0;
-            const isOverAchieved = count > habit.targetCount && habit.targetCount > 0;
-            const pct = Math.round((count / habit.targetCount) * 100);
 
             return (
-              <div
+              <HabitCard
                 key={habit.id}
-                draggable={isEditMode}
-                onDragStart={() => handleDragStart(index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onTouchStart={(e) => handleTouchStart(e, index)}
-                onTouchMove={(e) => handleTouchMove(e, index)}
-                onTouchEnd={handleTouchEnd}
-                className={`p-4 rounded-3xl flex justify-between items-center shadow-lg transition duration-200 border select-none ${
-                  isOverAchieved
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-teal-300/60 shadow-teal-900/40'
-                    : isCompleted 
-                    ? 'bg-emerald-600 text-white border-emerald-400/50 shadow-emerald-900/30' 
-                    : 'bg-[#161e2c] border-gray-700/60 hover:border-gray-600'
-                } ${isEditMode ? 'border-blue-400 cursor-grab active:cursor-grabbing' : ''}`}
-              >
-                <div
-                  onClick={() => !isEditMode && setActiveHabitCounter(habit)}
-                  className="flex items-center gap-3.5 cursor-pointer flex-1"
-                >
-                  <div 
-                    style={{ 
-                      backgroundColor: isCompleted ? '#ffffff33' : `${habit.color || '#3b82f6'}25`, 
-                      borderColor: isCompleted ? '#ffffff66' : `${habit.color || '#3b82f6'}60`,
-                      color: isCompleted ? '#ffffff' : habit.color || '#3b82f6'
-                    }}
-                    className="w-11 h-11 rounded-2xl flex items-center justify-center font-black text-lg border shadow-sm transition"
-                  >
-                    {isOverAchieved ? '⭐' : isCompleted ? '✓' : isEditMode ? '☰' : getHabitIcon(habit.type)}
-                  </div>
-
-                  <div className="text-right">
-                    <span className="font-bold text-base block tracking-tight">{habit.title}</span>
-                    <span className={`text-xs ${isCompleted ? 'text-emerald-100 font-medium' : 'text-gray-400'}`}>
-                      {count} / {habit.targetCount} {habit.unit}
-                    </span>
-                  </div>
-                </div>
-
-                {isEditMode ? (
-                  <div className="flex items-center gap-1.5 bg-black/40 p-1.5 rounded-2xl">
-                    <button 
-                      onClick={() => moveHabit(index, 'up')} 
-                      className="w-7 h-7 bg-gray-700 hover:bg-gray-600 active:bg-blue-600 rounded-lg text-xs font-black flex items-center justify-center text-white"
-                    >
-                      ▲
-                    </button>
-                    <button 
-                      onClick={() => moveHabit(index, 'down')} 
-                      className="w-7 h-7 bg-gray-700 hover:bg-gray-600 active:bg-blue-600 rounded-lg text-xs font-black flex items-center justify-center text-white"
-                    >
-                      ▼
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setEditingHabit(habit);
-                        setTitle(habit.title);
-                        setHabitType(habit.type || 'عداد');
-                        setTargetCount(habit.targetCount);
-                        setUnit(habit.unit);
-                        setSelectedColor(habit.color);
-                        setSelectedDays(habit.repeatDays || [0, 1, 2, 3, 4, 5, 6]);
-                        setIsAddModalOpen(true);
-                      }}
-                      className="px-2.5 py-1 bg-blue-600 rounded-lg text-xs font-bold"
-                    >
-                      تعديل
-                    </button>
-                    <button onClick={() => deleteHabit(habit.id)} className="px-2 py-1 bg-red-600 rounded-lg text-xs">🗑️</button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3">
-                    {!isCompleted && (
-                      <span 
-                        style={{ color: habit.color || '#3b82f6' }}
-                        className="font-black text-base tracking-wider"
-                      >
-                        %{pct}
-                      </span>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={(e) => toggleQuickComplete(e, habit)}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition active:scale-90 border ${
-                        isCompleted
-                          ? 'bg-white/20 text-white border-white/40 shadow-inner'
-                          : 'bg-[#0d131d] border-gray-600 text-gray-400 hover:border-white'
-                      }`}
-                    >
-                      ✓
-                    </button>
-                  </div>
-                )}
-              </div>
+                habit={habit}
+                count={count}
+                isEditMode={isEditMode}
+                onCounterClick={() => setActiveHabitCounter(habit)}
+                onQuickToggle={(e) => toggleQuickComplete(e, habit)}
+                onEdit={() => {
+                  setEditingHabit(habit);
+                  setTitle(habit.title);
+                  setHabitType(habit.type || 'عداد');
+                  setTargetCount(habit.targetCount);
+                  setUnit(habit.unit);
+                  setSelectedColor(habit.color);
+                  setSelectedDays(habit.repeatDays || [0, 1, 2, 3, 4, 5, 6]);
+                  setIsAddModalOpen(true);
+                }}
+                onDelete={() => deleteHabit(habit.id)}
+                onMoveUp={index > 0 ? () => moveHabit(index, 'up') : undefined}
+                onMoveDown={index < visibleHabits.length - 1 ? () => moveHabit(index, 'down') : undefined}
+              />
             );
           })
         )}
@@ -492,7 +353,7 @@ export default function Home() {
           setSelectedDays([0, 1, 2, 3, 4, 5, 6]);
           setIsAddModalOpen(true);
         }}
-        className="fixed bottom-10 right-8 w-14 h-14 bg-gradient-to-tr from-blue-600 to-indigo-500 text-white rounded-2xl shadow-2xl shadow-blue-500/40 text-3xl font-bold flex items-center justify-center border border-white/20 transition active:scale-95 z-40"
+        className="fixed bottom-16 right-8 w-14 h-14 bg-gradient-to-tr from-blue-600 to-indigo-500 text-white rounded-2xl shadow-2xl shadow-blue-500/40 text-3xl font-bold flex items-center justify-center border border-white/20 transition active:scale-95 z-40"
       >
         +
       </button>
@@ -728,6 +589,18 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* شريط التنقل السفلي الثابت */}
+      <div className="fixed bottom-0 left-0 right-0 bg-[#131a26]/90 backdrop-blur-lg border-t border-gray-800 py-3 px-6 flex justify-around items-center z-50">
+        <Link href="/" className="flex flex-col items-center gap-1 text-blue-400 font-bold">
+          <span className="text-xl">✅</span>
+          <span className="text-[10px]">العادات</span>
+        </Link>
+        <Link href="/stats" className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition">
+          <span className="text-xl">📊</span>
+          <span className="text-[10px] font-bold">الإحصائيات</span>
+        </Link>
+      </div>
 
     </div>
   );
