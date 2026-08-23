@@ -189,7 +189,7 @@ export default function StatsPage() {
         </div>
       )}
 
-      {/* تفاصيل نسبة كل عادة بحد ذاتها في الشهر */}
+      {/* تفاصيل نسبة كل عادة بحد ذاتها */}
       <div className="space-y-4">
         <h3 className="text-lg font-bold">معدل التزام العادات ({activeTab === 'month' ? 'شهرياً' : activeTab === 'week' ? 'أسبوعياً' : 'اليوم'})</h3>
         {habits.length === 0 ? (
@@ -229,11 +229,15 @@ export default function StatsPage() {
         )}
       </div>
 
-      {/* شريط التنقل السفلي الثابت */}
+      {/* شريط التنقل السفلي الثابت مع الصفحات الثلاث */}
       <div className="fixed bottom-0 left-0 right-0 bg-[#131a26]/90 backdrop-blur-lg border-t border-gray-800 py-3 px-6 flex justify-around items-center z-50">
         <Link href="/" className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition">
           <span className="text-xl">✅</span>
           <span className="text-[10px] font-bold">العادات</span>
+        </Link>
+        <Link href="/history" className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition">
+          <span className="text-xl">📅</span>
+          <span className="text-[10px] font-bold">السجل</span>
         </Link>
         <Link href="/stats" className="flex flex-col items-center gap-1 text-blue-400 font-bold">
           <span className="text-xl">📊</span>
