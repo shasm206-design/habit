@@ -26,7 +26,7 @@ export interface DayProgress {
   [habitId: string]: number;
 }
 
-const COLOR_OPTIONS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+const COLOR_OPTIONS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 const DAYS_LOOKUP = [
   { id: 0, label: 'S' },
   { id: 1, label: 'M' },
@@ -118,10 +118,11 @@ export default function Home() {
 
   const getHabitCount = (habitId: string) => currentDayProgress[habitId] || 0;
 
+  // إتاحة تجاوز التكلفة دون حد أقصى للحصول على تفوق ومكافآت
   const updateHabitCount = (habitId: string, newCount: number) => {
     const habit = habits.find((h) => h.id === habitId);
     if (!habit) return;
-    const validCount = Math.max(0, Math.min(newCount, habit.targetCount));
+    const validCount = Math.max(0, newCount); // لا يوجد حد أقصى لتمكين الإنجاز الفائق!
     const updatedDay = { ...currentDayProgress, [habitId]: validCount };
     const updatedDaily = { ...dailyData, [selectedDate]: updatedDay };
     saveData(habits, updatedDaily);
@@ -220,23 +221,25 @@ export default function Home() {
     if (pct >= 80) return { trophy: '🥇', label: 'ممتاز' };
     if (pct >= 60) return { trophy: '🥈', label: 'جيد' };
     if (pct >= 40) return { trophy: '🥉', label: 'مقبول' };
-    return { trophy: '❌', label: 'متواضع' };
+    return { trophy: '⚡', label: 'بصمة البداية' };
   };
 
   const status = getTrophyStatus(totalPercentage);
 
   return (
-    <div className="max-w-4xl mx-auto min-h-screen bg-[#141921] text-white p-4 md:p-8 font-sans pb-24 dir-rtl text-right" dir="rtl">
+    <div className="max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-24 dir-rtl text-right" dir="rtl">
       
-      {/* الترويسة الرئيسية */}
+      {/* الترويسة المبهجة المحدثة */}
       <div className="flex justify-between items-center mb-6 pt-2">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-blue-600/30 border border-blue-500/40 flex items-center justify-center font-bold text-xl shadow-lg">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 border border-blue-400/40 flex items-center justify-center font-bold text-xl shadow-lg shadow-blue-500/20">
             👤
           </div>
           <div>
-            <h1 className="text-xl md:text-2xl font-extrabold">مرحباً، {user?.email ? user.email.split('@')[0] : 'هاشم'}</h1>
-            <p className="text-xs text-gray-400">تاريخ اليوم: {selectedDate}</p>
+            <h1 className="text-xl md:text-2xl font-extrabold bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
+              مرحباً، {user?.email ? user.email.split('@')[0] : 'هاشم'}
+            </h1>
+            <p className="text-xs text-blue-400/80 font-medium">تاريخ اليوم: {selectedDate}</p>
           </div>
         </div>
 
@@ -245,26 +248,26 @@ export default function Home() {
             تسجيل الخروج
           </button>
         ) : (
-          <button onClick={() => setIsAuthModalOpen(true)} className="text-xs bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-xl font-bold shadow transition">
+          <button onClick={() => setIsAuthModalOpen(true)} className="text-xs bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 px-4 py-2 rounded-xl font-bold shadow-lg shadow-blue-600/30 transition">
             تسجيل الدخول 🔐
           </button>
         )}
       </div>
 
-      {/* شريط الإنجاز والكأس */}
-      <div className="bg-gradient-to-r from-[#b38600] to-[#d99b00] text-black p-4 rounded-3xl flex justify-between items-center px-6 shadow-2xl mb-8">
+      {/* شريط الإنجاز والكأس المشرق */}
+      <div className="bg-gradient-to-r from-[#d97706] via-[#f59e0b] to-[#fbbf24] text-black p-4.5 rounded-3xl flex justify-between items-center px-6 shadow-xl shadow-amber-500/10 mb-8 border border-amber-300/30">
         <div className="flex items-center gap-3">
-          <span className="text-3xl">{status.trophy}</span>
+          <span className="text-3xl filter drop-shadow">{status.trophy}</span>
           <div>
-            <span className="font-extrabold text-lg block">تقدم اليوم: {totalPercentage}%</span>
-            <span className="text-xs font-bold opacity-80">التقييم: {status.label}</span>
+            <span className="font-black text-lg block tracking-wide">تقدم اليوم: {totalPercentage}%</span>
+            <span className="text-xs font-extrabold opacity-90">التقييم: {status.label}</span>
           </div>
         </div>
         <input 
           type="date" 
           value={selectedDate} 
           onChange={(e) => setSelectedDate(e.target.value)}
-          className="bg-black/20 text-black font-bold p-2 rounded-xl border border-black/10 outline-none text-xs cursor-pointer"
+          className="bg-black/25 text-black font-extrabold p-2 rounded-xl border border-black/10 outline-none text-xs cursor-pointer shadow-inner"
         />
       </div>
 
@@ -273,24 +276,25 @@ export default function Home() {
         <h2 className="text-2xl font-bold">عاداتي {isEditMode && <span className="text-xs text-blue-400 font-normal">(اسحب العادة لترتيبها)</span>}</h2>
         <button
           onClick={() => setIsEditMode(!isEditMode)}
-          className={`text-xs px-3.5 py-1.5 rounded-xl font-bold transition ${
-            isEditMode ? 'bg-emerald-600 text-white' : 'bg-[#1f2733] text-gray-300 hover:bg-gray-700 border border-gray-700'
+          className={`text-xs px-4 py-2 rounded-xl font-bold transition shadow-md ${
+            isEditMode ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-[#18202e] text-gray-300 hover:bg-gray-700 border border-gray-700/80'
           }`}
         >
           {isEditMode ? 'تم الحفظ ✔️' : 'تعديل ✏️'}
         </button>
       </div>
 
-      {/* قائمة بطاقات العادات مع لون الأيقونة المخصص */}
+      {/* قائمة بطاقات العادات الملونة والتفاعلية */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {visibleHabits.length === 0 ? (
-          <div className="col-span-full text-center py-12 text-gray-500 text-sm bg-[#1a222d] rounded-3xl border border-dashed border-gray-800">
+          <div className="col-span-full text-center py-12 text-gray-500 text-sm bg-[#131a26] rounded-3xl border border-dashed border-gray-800">
             لا توجد عادات مسجلة لهذا اليوم المختار.
           </div>
         ) : (
           visibleHabits.map((habit, index) => {
             const count = getHabitCount(habit.id);
             const isCompleted = count >= habit.targetCount && habit.targetCount > 0;
+            const isOverAchieved = count > habit.targetCount && habit.targetCount > 0;
             const pct = Math.round((count / habit.targetCount) * 100);
 
             return (
@@ -299,30 +303,33 @@ export default function Home() {
                 draggable={isEditMode}
                 onDragStart={() => handleDragStart(index)}
                 onDragOver={(e) => handleDragOver(e, index)}
-                className={`p-4 rounded-3xl flex justify-between items-center shadow-md transition border ${
-                  isCompleted 
+                className={`p-4 rounded-3xl flex justify-between items-center shadow-lg transition duration-200 border ${
+                  isOverAchieved
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-teal-300/60 shadow-teal-900/40'
+                    : isCompleted 
                     ? 'bg-emerald-600 text-white border-emerald-400/50 shadow-emerald-900/30' 
-                    : 'bg-[#1e2633] border-gray-700/60 hover:border-gray-600'
+                    : 'bg-[#161e2c] border-gray-700/60 hover:border-gray-600'
                 } ${isEditMode ? 'cursor-grab active:cursor-grabbing border-blue-400' : ''}`}
               >
                 <div
                   onClick={() => !isEditMode && setActiveHabitCounter(habit)}
-                  className="flex items-center gap-3 cursor-pointer flex-1"
+                  className="flex items-center gap-3.5 cursor-pointer flex-1"
                 >
-                  {/* أيقونة شكل نوع العادة باللون المخصص */}
+                  {/* الأيقونة الملونة الزاهية بالنمط الاحترافي */}
                   <div 
                     style={{ 
-                      backgroundColor: isCompleted ? '#ffffff33' : `${habit.color || '#3b82f6'}20`, 
-                      borderColor: isCompleted ? '#ffffff66' : `${habit.color || '#3b82f6'}50` 
+                      backgroundColor: isCompleted ? '#ffffff33' : `${habit.color || '#3b82f6'}25`, 
+                      borderColor: isCompleted ? '#ffffff66' : `${habit.color || '#3b82f6'}60`,
+                      color: isCompleted ? '#ffffff' : habit.color || '#3b82f6'
                     }}
-                    className="w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-base border shadow-sm"
+                    className="w-11 h-11 rounded-2xl flex items-center justify-center font-black text-lg border shadow-sm transition"
                   >
-                    {isCompleted ? '✓' : isEditMode ? '☰' : getHabitIcon(habit.type)}
+                    {isOverAchieved ? '⭐' : isCompleted ? '✓' : isEditMode ? '☰' : getHabitIcon(habit.type)}
                   </div>
 
                   <div className="text-right">
-                    <span className="font-bold text-base block">{habit.title}</span>
-                    <span className={`text-xs ${isCompleted ? 'text-emerald-100' : 'text-gray-400'}`}>
+                    <span className="font-bold text-base block tracking-tight">{habit.title}</span>
+                    <span className={`text-xs ${isCompleted ? 'text-emerald-100 font-medium' : 'text-gray-400'}`}>
                       {count} / {habit.targetCount} {habit.unit}
                     </span>
                   </div>
@@ -358,14 +365,14 @@ export default function Home() {
                       </span>
                     )}
 
-                    {/* زر الصح الدائري */}
+                    {/* زر الإكمال السريع المباشر */}
                     <button
                       type="button"
                       onClick={(e) => toggleQuickComplete(e, habit)}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-transform active:scale-90 border ${
+                      className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition active:scale-90 border ${
                         isCompleted
                           ? 'bg-white/20 text-white border-white/40 shadow-inner'
-                          : 'bg-[#141921] border-gray-600 text-gray-400 hover:border-white'
+                          : 'bg-[#0d131d] border-gray-600 text-gray-400 hover:border-white'
                       }`}
                     >
                       ✓
@@ -378,7 +385,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* زر إضافة عادة */}
+      {/* زر إضافة عادة ملون ومحفز */}
       <button
         onClick={() => {
           setEditingHabit(null);
@@ -389,21 +396,25 @@ export default function Home() {
           setSelectedDays([0, 1, 2, 3, 4, 5, 6]);
           setIsAddModalOpen(true);
         }}
-        className="fixed bottom-10 right-8 w-14 h-14 bg-[#2b3648] hover:bg-[#38465c] text-white rounded-2xl shadow-2xl text-3xl font-bold flex items-center justify-center border border-white/10 transition active:scale-95 z-40"
+        className="fixed bottom-10 right-8 w-14 h-14 bg-gradient-to-tr from-blue-600 to-indigo-500 text-white rounded-2xl shadow-2xl shadow-blue-500/40 text-3xl font-bold flex items-center justify-center border border-white/20 transition active:scale-95 z-40"
       >
         +
       </button>
 
-      {/* نافذة العداد */}
+      {/* نافذة العداد التفاعلية */}
       {activeHabitCounter && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex flex-col justify-between p-6 z-50 text-center">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex flex-col justify-between p-6 z-50 text-center">
           <div className="flex justify-between items-center max-w-md mx-auto w-full">
-            <span className="text-gray-400 text-sm">متبقي: {Math.max(0, activeHabitCounter.targetCount - getHabitCount(activeHabitCounter.id))}</span>
+            <span className="text-gray-400 text-sm font-bold">
+              {getHabitCount(activeHabitCounter.id) > activeHabitCounter.targetCount 
+                ? 'إنجاز إضافي فائق! ⭐' 
+                : `متبقي: ${Math.max(0, activeHabitCounter.targetCount - getHabitCount(activeHabitCounter.id))}`}
+            </span>
             <button onClick={() => setActiveHabitCounter(null)} className="text-gray-300 font-bold text-2xl">✕</button>
           </div>
 
           <div className="my-auto space-y-8">
-            <div className="bg-[#1e2633] p-6 rounded-3xl max-w-xs mx-auto shadow-2xl border border-gray-700">
+            <div className="bg-[#18202e] p-6 rounded-3xl max-w-xs mx-auto shadow-2xl border border-gray-700/80">
               <h3 className="text-2xl font-bold">{activeHabitCounter.title}</h3>
               <p className="text-xs text-gray-400 mt-2">
                 إنجاز يوم {selectedDate}: {getHabitCount(activeHabitCounter.id)} من {activeHabitCounter.targetCount} {activeHabitCounter.unit}
@@ -422,7 +433,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => updateHabitCount(activeHabitCounter.id, getHabitCount(activeHabitCounter.id) + 1)}
-                style={{ backgroundColor: activeHabitCounter.color || '#2bbdbd' }}
+                style={{ backgroundColor: activeHabitCounter.color || '#3b82f6' }}
                 className="w-40 h-40 rounded-full text-white text-5xl font-extrabold flex items-center justify-center shadow-2xl border-4 border-white/20 active:scale-95 transition-transform"
               >
                 {getHabitCount(activeHabitCounter.id)}
@@ -443,7 +454,7 @@ export default function Home() {
       {/* نافذة إضافة أو تعديل عادة */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-[#1e2633] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl my-8">
+          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl my-8">
             <div className="flex justify-between items-center border-b border-gray-700/80 pb-3">
               <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 text-sm">إلغاء</button>
               <h3 className="text-lg font-bold">{editingHabit ? 'تعديل العادة' : 'إضافة عادة جديدة'}</h3>
@@ -458,14 +469,14 @@ export default function Home() {
                   placeholder="مثلاً: قراءة قرآن"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full bg-[#141921] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm focus:border-blue-500"
+                  className="w-full bg-[#0d131d] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm focus:border-blue-500"
                   required
                 />
               </div>
 
               <div>
                 <label className="text-xs text-gray-400 block mb-2">نوع العادة</label>
-                <div className="grid grid-cols-3 gap-2 bg-[#141921] p-1.5 rounded-2xl border border-gray-700 text-center text-xs font-bold">
+                <div className="grid grid-cols-3 gap-2 bg-[#0d131d] p-1.5 rounded-2xl border border-gray-700 text-center text-xs font-bold">
                   {(['مهمة', 'مؤقت', 'عداد'] as const).map((t) => (
                     <button
                       key={t}
@@ -482,7 +493,7 @@ export default function Home() {
               </div>
 
               {(habitType === 'عداد' || habitType === 'مؤقت') && (
-                <div className="space-y-2 bg-[#141921] p-4 rounded-2xl border border-gray-700">
+                <div className="space-y-2 bg-[#0d131d] p-4 rounded-2xl border border-gray-700">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-gray-400">
                       {habitType === 'مؤقت' ? 'أدخل الدقائق' : 'تحديد العدد المستهدف'}
@@ -544,7 +555,7 @@ export default function Home() {
                         type="button"
                         onClick={() => toggleDaySelection(day.id)}
                         className={`w-9 h-9 rounded-full font-bold text-xs transition ${
-                          isSelected ? 'bg-blue-600 text-white shadow-lg' : 'bg-[#141921] text-gray-400 border border-gray-700'
+                          isSelected ? 'bg-blue-600 text-white shadow-lg' : 'bg-[#0d131d] text-gray-400 border border-gray-700'
                         }`}
                       >
                         {day.label}
@@ -561,7 +572,7 @@ export default function Home() {
       {/* نافذة تسجيل الدخول */}
       {isAuthModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#1e2633] border border-gray-700 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl">
+          <div className="bg-[#18202e] border border-gray-700 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl">
             <div className="flex justify-between items-center">
               <h3 className="text-xl font-bold">{isSignUp ? 'إنشاء حساب جديد' : 'تسجيل الدخول'}</h3>
               <button onClick={() => setIsAuthModalOpen(false)} className="text-gray-400 font-bold">✕</button>
@@ -603,7 +614,7 @@ export default function Home() {
                 placeholder="البريد الإلكتروني"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-[#141921] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm"
+                className="w-full bg-[#0d131d] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm"
                 required
               />
               <input
@@ -611,7 +622,7 @@ export default function Home() {
                 placeholder="كلمة المرور"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[#141921] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm"
+                className="w-full bg-[#0d131d] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm"
                 required
               />
               <button type="submit" className="w-full py-3 bg-blue-600 font-bold rounded-xl">
