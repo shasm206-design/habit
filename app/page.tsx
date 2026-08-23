@@ -118,11 +118,10 @@ export default function Home() {
 
   const getHabitCount = (habitId: string) => currentDayProgress[habitId] || 0;
 
-  // إتاحة تجاوز التكلفة دون حد أقصى للحصول على تفوق ومكافآت
   const updateHabitCount = (habitId: string, newCount: number) => {
     const habit = habits.find((h) => h.id === habitId);
     if (!habit) return;
-    const validCount = Math.max(0, newCount); // لا يوجد حد أقصى لتمكين الإنجاز الفائق!
+    const validCount = Math.max(0, newCount);
     const updatedDay = { ...currentDayProgress, [habitId]: validCount };
     const updatedDaily = { ...dailyData, [selectedDate]: updatedDay };
     saveData(habits, updatedDaily);
@@ -216,12 +215,51 @@ export default function Home() {
           (visibleHabits.reduce((acc, h) => acc + getHabitCount(h.id) / h.targetCount, 0) / visibleHabits.length) * 100
         );
 
+  // احتساب التقييم والشكل واللون الدقيق بحسب النسب المحددة
   const getTrophyStatus = (pct: number) => {
-    if (pct >= 95) return { trophy: '👑', label: 'يا استثنائي' };
-    if (pct >= 80) return { trophy: '🥇', label: 'ممتاز' };
-    if (pct >= 60) return { trophy: '🥈', label: 'جيد' };
-    if (pct >= 40) return { trophy: '🥉', label: 'مقبول' };
-    return { trophy: '⚡', label: 'بصمة البداية' };
+    if (pct >= 95) {
+      return { 
+        trophy: '👑', 
+        label: 'يا استثنائي', 
+        desc: 'أداء مبهر يفوق التوقعات!',
+        bgGradient: 'from-amber-400 via-yellow-500 to-amber-600',
+        textColor: 'text-black'
+      };
+    }
+    if (pct >= 80) {
+      return { 
+        trophy: '🥇', 
+        label: 'ممتاز', 
+        desc: 'إنجاز رفيع ومستوى متقدم جداً',
+        bgGradient: 'from-yellow-500 to-amber-500',
+        textColor: 'text-black'
+      };
+    }
+    if (pct >= 60) {
+      return { 
+        trophy: '🥈', 
+        label: 'جيد', 
+        desc: 'استمرار رائع وتقدم ملحوظ',
+        bgGradient: 'from-slate-300 via-gray-400 to-slate-500',
+        textColor: 'text-black'
+      };
+    }
+    if (pct >= 40) {
+      return { 
+        trophy: '🥉', 
+        label: 'مقبول', 
+        desc: 'بداية خطوة متينة، واصل!',
+        bgGradient: 'from-amber-700 via-amber-800 to-amber-900',
+        textColor: 'text-white'
+      };
+    }
+    return { 
+      trophy: '❌', 
+      label: 'متواضع', 
+      desc: 'حفّز نفسك للبدء بالعادة الأولى اليوم',
+      bgGradient: 'from-slate-800 to-slate-900',
+      textColor: 'text-gray-300'
+    };
   };
 
   const status = getTrophyStatus(totalPercentage);
@@ -229,7 +267,7 @@ export default function Home() {
   return (
     <div className="max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-24 dir-rtl text-right" dir="rtl">
       
-      {/* الترويسة المبهجة المحدثة */}
+      {/* الترويسة الرئيسية */}
       <div className="flex justify-between items-center mb-6 pt-2">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 border border-blue-400/40 flex items-center justify-center font-bold text-xl shadow-lg shadow-blue-500/20">
@@ -254,20 +292,25 @@ export default function Home() {
         )}
       </div>
 
-      {/* شريط الإنجاز والكأس المشرق */}
-      <div className="bg-gradient-to-r from-[#d97706] via-[#f59e0b] to-[#fbbf24] text-black p-4.5 rounded-3xl flex justify-between items-center px-6 shadow-xl shadow-amber-500/10 mb-8 border border-amber-300/30">
-        <div className="flex items-center gap-3">
+      {/* شريط الإنجاز المتكيف بصرياً حسب التقييم والنسبة */}
+      <div className={`bg-gradient-to-r ${status.bgGradient} ${status.textColor} p-4.5 rounded-3xl flex justify-between items-center px-6 shadow-xl mb-8 border border-white/20 transition-all duration-300`}>
+        <div className="flex items-center gap-3.5">
           <span className="text-3xl filter drop-shadow">{status.trophy}</span>
           <div>
-            <span className="font-black text-lg block tracking-wide">تقدم اليوم: {totalPercentage}%</span>
-            <span className="text-xs font-extrabold opacity-90">التقييم: {status.label}</span>
+            <div className="flex items-center gap-2">
+              <span className="font-black text-lg tracking-wide block">تقدم اليوم: {totalPercentage}%</span>
+              <span className="text-xs font-black px-2 py-0.5 rounded-lg bg-black/20 backdrop-blur-sm">
+                التقييم: {status.label}
+              </span>
+            </div>
+            <span className="text-xs font-medium opacity-90 block mt-0.5">{status.desc}</span>
           </div>
         </div>
         <input 
           type="date" 
           value={selectedDate} 
           onChange={(e) => setSelectedDate(e.target.value)}
-          className="bg-black/25 text-black font-extrabold p-2 rounded-xl border border-black/10 outline-none text-xs cursor-pointer shadow-inner"
+          className="bg-black/20 text-current font-extrabold p-2 rounded-xl border border-black/10 outline-none text-xs cursor-pointer shadow-inner"
         />
       </div>
 
@@ -284,7 +327,7 @@ export default function Home() {
         </button>
       </div>
 
-      {/* قائمة بطاقات العادات الملونة والتفاعلية */}
+      {/* قائمة بطاقات العادات */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {visibleHabits.length === 0 ? (
           <div className="col-span-full text-center py-12 text-gray-500 text-sm bg-[#131a26] rounded-3xl border border-dashed border-gray-800">
@@ -315,7 +358,6 @@ export default function Home() {
                   onClick={() => !isEditMode && setActiveHabitCounter(habit)}
                   className="flex items-center gap-3.5 cursor-pointer flex-1"
                 >
-                  {/* الأيقونة الملونة الزاهية بالنمط الاحترافي */}
                   <div 
                     style={{ 
                       backgroundColor: isCompleted ? '#ffffff33' : `${habit.color || '#3b82f6'}25`, 
@@ -365,7 +407,6 @@ export default function Home() {
                       </span>
                     )}
 
-                    {/* زر الإكمال السريع المباشر */}
                     <button
                       type="button"
                       onClick={(e) => toggleQuickComplete(e, habit)}
@@ -385,7 +426,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* زر إضافة عادة ملون ومحفز */}
+      {/* زر إضافة عادة */}
       <button
         onClick={() => {
           setEditingHabit(null);
