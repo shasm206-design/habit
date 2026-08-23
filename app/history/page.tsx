@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'link';
+import Link from 'next/link';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
@@ -80,7 +80,6 @@ export default function HistoryPage() {
     }
   };
 
-  // توليد أيامي الشهر الحالي للتقويمي
   const getDaysInCurrentMonth = () => {
     const now = new Date();
     const year = now.getFullYear();
@@ -124,7 +123,7 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* تقويم أيام الشهر الحالي أفقي */}
+      {/* تقويم أيام الشهر الحالي */}
       <div className="bg-[#161e2c] p-4 rounded-3xl border border-gray-700/60 shadow-lg mb-6">
         <h3 className="text-xs font-bold text-gray-400 mb-3 px-1">تقويم الشهر الحالي:</h3>
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
@@ -218,7 +217,7 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* شريط التنقل السفلي الثابت مع الصفحات الثلاث */}
+      {/* شريط التنقل السفلي الموحد */}
       <div className="fixed bottom-0 left-0 right-0 bg-[#131a26]/90 backdrop-blur-lg border-t border-gray-800 py-3 px-6 flex justify-around items-center z-50">
         <Link href="/" className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition">
           <span className="text-xl">✅</span>
