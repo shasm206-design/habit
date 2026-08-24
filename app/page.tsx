@@ -50,6 +50,13 @@ export default function Home() {
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [activeHabitCounter, setActiveHabitCounter] = useState<Habit | null>(null);
 
+  // Timer States
+  const [useLiveTimer, setUseLiveTimer] = useState(true);
+  const [timerSecondsLeft, setTimerSecondsLeft] = useState<number>(0);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [isTimerFinished, setIsTimerFinished] = useState(false);
+  const [isOvertime, setIsOvertime] = useState(false);
+
   // Form State
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
@@ -102,6 +109,91 @@ export default function Home() {
 
     return () => unsubscribeAuth();
   }, []);
+
+  // إدارة المؤقت والتزامن
+  useEffect(() => {
+    if (!activeHabitCounter || activeHabitCounter.type !== 'مؤقت') return;
+
+    const habitId = activeHabitCounter.id;
+    const storedEndTime = localStorage.getItem(`timer_end_${habitId}`);
+
+    if (storedEndTime) {
+      const endTime = parseInt(storedEndTime, 10);
+      const now = Date.now();
+      const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
+      setTimerSecondsLeft(remaining);
+      setIsTimerRunning(remaining > 0);
+      setIsTimerFinished(remaining === 0);
+    } else {
+      setTimerSecondsLeft(activeHabitCounter.targetCount * 60);
+      setIsTimerRunning(false);
+      setIsTimerFinished(false);
+      setIsOvertime(false);
+    }
+  }, [activeHabitCounter]);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isTimerRunning && activeHabitCounter && activeHabitCounter.type === 'مؤقت') {
+      timer = setInterval(() => {
+        if (isOvertime) {
+          setTimerSecondsLeft((prev) => {
+            const next = prev + 1;
+            if (next % 60 === 0) {
+              const currentMins = getHabitCount(activeHabitCounter.id);
+              updateHabitCount(activeHabitCounter.id, currentMins + 1);
+            }
+            return next;
+          });
+        } else {
+          const storedEndTime = localStorage.getItem(`timer_end_${activeHabitCounter.id}`);
+          if (storedEndTime) {
+            const remaining = Math.max(0, Math.floor((parseInt(storedEndTime, 10) - Date.now()) / 1000));
+            setTimerSecondsLeft(remaining);
+
+            if (remaining <= 0) {
+              setIsTimerRunning(false);
+              setIsTimerFinished(true);
+              localStorage.removeItem(`timer_end_${activeHabitCounter.id}`);
+              updateHabitCount(activeHabitCounter.id, activeHabitCounter.targetCount);
+            }
+          }
+        }
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [isTimerRunning, isOvertime, activeHabitCounter]);
+
+  const startTimer = () => {
+    if (!activeHabitCounter) return;
+    const duration = timerSecondsLeft > 0 ? timerSecondsLeft : activeHabitCounter.targetCount * 60;
+    const endTime = Date.now() + duration * 1000;
+    localStorage.setItem(`timer_end_${activeHabitCounter.id}`, endTime.toString());
+    setIsTimerRunning(true);
+    setIsTimerFinished(false);
+  };
+
+  const startOvertime = () => {
+    setIsOvertime(true);
+    setTimerSecondsLeft(0);
+    setIsTimerRunning(true);
+    setIsTimerFinished(false);
+  };
+
+  const pauseTimer = () => {
+    if (!activeHabitCounter) return;
+    localStorage.removeItem(`timer_end_${activeHabitCounter.id}`);
+    setIsTimerRunning(false);
+  };
+
+  const resetTimer = () => {
+    if (!activeHabitCounter) return;
+    localStorage.removeItem(`timer_end_${activeHabitCounter.id}`);
+    setIsTimerRunning(false);
+    setIsTimerFinished(false);
+    setIsOvertime(false);
+    setTimerSecondsLeft(activeHabitCounter.targetCount * 60);
+  };
 
   const saveData = async (
     updatedHabits: Habit[], 
@@ -198,7 +290,7 @@ export default function Home() {
     setIsAddModalOpen(false);
   };
 
-  // إدارة مهام To-Do
+  // المهام
   const currentDayTasks = tasks[selectedDate] || [];
 
   const addTask = (e: React.FormEvent) => {
@@ -228,7 +320,6 @@ export default function Home() {
     saveData(habits, dailyData, updatedTasks);
   };
 
-  // حساب الـ Streak الأيام المستمرة للعادة
   const getHabitStreak = (habit: Habit) => {
     let streak = 0;
     const today = new Date();
@@ -257,10 +348,64 @@ export default function Home() {
           (visibleHabits.reduce((acc, h) => acc + getHabitCount(h.id) / h.targetCount, 0) / visibleHabits.length) * 100
         );
 
+  const getTrophyStatus = (pct: number) => {
+    if (pct >= 95) {
+      return { 
+        trophy: '👑', 
+        label: 'يا استثنائي', 
+        desc: 'أداء مبهر يفوق التوقعات!',
+        bgGradient: 'from-amber-400 via-yellow-500 to-amber-600',
+        textColor: 'text-black'
+      };
+    }
+    if (pct >= 80) {
+      return { 
+        trophy: '🥇', 
+        label: 'ممتاز', 
+        desc: 'إنجاز رفيع ومستوى متقدم جداً',
+        bgGradient: 'from-yellow-500 to-amber-500',
+        textColor: 'text-black'
+      };
+    }
+    if (pct >= 60) {
+      return { 
+        trophy: '🥈', 
+        label: 'جيد', 
+        desc: 'استمرار رائع وتقدم ملحوظ',
+        bgGradient: 'from-slate-300 via-gray-400 to-slate-500',
+        textColor: 'text-black'
+      };
+    }
+    if (pct >= 40) {
+      return { 
+        trophy: '🥉', 
+        label: 'مقبول', 
+        desc: 'بداية خطوة متينة، واصل!',
+        bgGradient: 'from-amber-700 via-amber-800 to-amber-900',
+        textColor: 'text-white'
+      };
+    }
+    return { 
+      trophy: '❌', 
+      label: 'متواضع', 
+      desc: 'حفّز نفسك للبدء بالعادة الأولى اليوم',
+      bgGradient: 'from-slate-800 to-slate-900',
+      textColor: 'text-gray-300'
+    };
+  };
+
+  const status = getTrophyStatus(totalPercentage);
+
+  const formatTimerDisplay = (sec: number) => {
+    const mins = Math.floor(sec / 60);
+    const secs = sec % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
   return (
     <div className="max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 dir-rtl text-right select-none" dir="rtl">
       
-      {/* الترويسة الرئيسية */}
+      {/* 1. الترويسة الرئيسية */}
       <div className="flex justify-between items-center mb-6 pt-2">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 border border-blue-400/40 flex items-center justify-center font-bold text-xl shadow-lg shadow-blue-500/20">
@@ -285,7 +430,29 @@ export default function Home() {
         )}
       </div>
 
-      {/* تبويب العادات والقوائم الإشعارات العلوية */}
+      {/* 2. شريط النسبة المئوية وتقييم اليوم والكأس (عاد لمكانه الأصلي) */}
+      <div className={`bg-gradient-to-r ${status.bgGradient} ${status.textColor} p-4.5 rounded-3xl flex justify-between items-center px-6 shadow-xl mb-6 border border-white/20 transition-all duration-300`}>
+        <div className="flex items-center gap-3.5">
+          <span className="text-3xl filter drop-shadow">{status.trophy}</span>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-black text-lg tracking-wide block">تقدم اليوم: {totalPercentage}%</span>
+              <span className="text-xs font-black px-2 py-0.5 rounded-lg bg-black/20 backdrop-blur-sm">
+                التقييم: {status.label}
+              </span>
+            </div>
+            <span className="text-xs font-medium opacity-90 block mt-0.5">{status.desc}</span>
+          </div>
+        </div>
+        <input 
+          type="date" 
+          value={selectedDate} 
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="bg-black/20 text-current font-extrabold p-2 rounded-xl border border-black/10 outline-none text-xs cursor-pointer shadow-inner"
+        />
+      </div>
+
+      {/* 3. تبويب العادات والمهام */}
       <div className="grid grid-cols-2 gap-2 bg-[#161e2c] p-1.5 rounded-2xl border border-gray-700/80 mb-6 text-center text-sm font-bold">
         <button
           onClick={() => setActiveMainTab('habits')}
@@ -326,13 +493,12 @@ export default function Home() {
                 لا توجد عادات مسجلة لهذا اليوم المختار.
               </div>
             ) : (
-              visibleHabits.map((habit, index) => {
+              visibleHabits.map((habit) => {
                 const count = getHabitCount(habit.id);
                 const streak = getHabitStreak(habit);
 
                 return (
                   <div key={habit.id} className="relative">
-                    {/* شارة العداد المستمر Streak */}
                     {streak > 0 && (
                       <span className="absolute -top-2 left-4 z-10 text-[10px] bg-gradient-to-r from-amber-500 to-red-500 text-white px-2.5 py-0.5 rounded-full font-black shadow-md border border-amber-300/40 flex items-center gap-1">
                         🔥 مستمر: {streak} يوم
@@ -374,7 +540,7 @@ export default function Home() {
           </div>
         </>
       ) : (
-        /* قسم قائمة المهام (To-Do List) */
+        /* قسم قائمة المهام */
         <div className="space-y-6">
           <form onSubmit={addTask} className="flex gap-2">
             <input
@@ -448,6 +614,143 @@ export default function Home() {
         >
           +
         </button>
+      )}
+
+      {/* 4. نافذة العداد / المؤقت الذكي والدائرة التفاعلية كاملة */}
+      {activeHabitCounter && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex flex-col justify-between p-6 z-50 text-center select-none overflow-y-auto">
+          <div className="flex justify-between items-center max-w-md mx-auto w-full pt-2">
+            <span className="text-gray-400 text-xs font-bold">
+              {getHabitCount(activeHabitCounter.id) >= activeHabitCounter.targetCount 
+                ? 'مكتمل! ⭐' 
+                : `متبقي: ${Math.max(0, activeHabitCounter.targetCount - getHabitCount(activeHabitCounter.id))} ${activeHabitCounter.unit}`}
+            </span>
+            <button onClick={() => setActiveHabitCounter(null)} className="text-gray-300 font-bold text-2xl">✕</button>
+          </div>
+
+          <div className="my-auto space-y-6">
+            <div className="bg-[#18202e] p-5 rounded-3xl max-w-xs mx-auto shadow-2xl border border-gray-700/80">
+              <h3 className="text-2xl font-bold">{activeHabitCounter.title}</h3>
+              <p className="text-xs text-gray-400 mt-1">
+                إنجاز يوم {selectedDate}: {getHabitCount(activeHabitCounter.id)} من {activeHabitCounter.targetCount} {activeHabitCounter.unit}
+              </p>
+            </div>
+
+            {/* مفتاح تحويل المؤقت الحي */}
+            {activeHabitCounter.type === 'مؤقت' && (
+              <div className="flex justify-center items-center gap-3 bg-[#18202e] px-4 py-2 rounded-2xl max-w-xs mx-auto border border-gray-700 text-xs font-bold">
+                <span className={useLiveTimer ? 'text-teal-400' : 'text-gray-400'}>مؤقت تفاعلي (خلفية)</span>
+                <button
+                  type="button"
+                  onClick={() => setUseLiveTimer(!useLiveTimer)}
+                  className={`w-12 h-6 rounded-full p-1 transition-colors ${useLiveTimer ? 'bg-teal-500' : 'bg-gray-700'}`}
+                >
+                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${useLiveTimer ? 'translate-x-0' : '-translate-x-6'}`} />
+                </button>
+              </div>
+            )}
+
+            {/* الدائرة والمؤقت التفاعلي الحي */}
+            {activeHabitCounter.type === 'مؤقت' && useLiveTimer ? (
+              <div className="flex flex-col items-center gap-6">
+                <div className="relative w-56 h-56 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border-8 border-gray-800" />
+                  <div 
+                    style={{ borderColor: isOvertime ? '#3b82f6' : activeHabitCounter.color || '#14b8a6' }} 
+                    className={`absolute inset-0 rounded-full border-8 border-t-transparent border-l-transparent ${isTimerRunning ? 'animate-spin-slow' : ''}`} 
+                  />
+                  <div className="text-center z-10">
+                    <span className="text-4xl font-black font-mono tracking-wider block">
+                      {formatTimerDisplay(timerSecondsLeft)}
+                    </span>
+                    <span className="text-xs text-gray-400 mt-1 block">
+                      {isOvertime ? 'وقت إضافي ⏱️' : `الهدف: ${activeHabitCounter.targetCount} دقيقة`}
+                    </span>
+                  </div>
+                </div>
+
+                {isTimerFinished ? (
+                  <div className="space-y-3 w-full max-w-xs">
+                    <div className="p-3 bg-emerald-500/20 text-emerald-300 rounded-2xl border border-emerald-500/40 text-xs font-bold">
+                      🎉 اكتمل الوقت المستهدف بنجاح!
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={startOvertime}
+                        className="flex-1 py-3 bg-blue-600 text-white font-extrabold rounded-2xl text-xs shadow-lg active:scale-95 transition"
+                      >
+                        أكمل الوقت ➕
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveHabitCounter(null)}
+                        className="flex-1 py-3 bg-gray-800 text-gray-300 font-bold rounded-2xl text-xs border border-gray-700 active:scale-95 transition"
+                      >
+                        إكتفاء 🏁
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex justify-center gap-4 w-full max-w-xs">
+                    {!isTimerRunning ? (
+                      <button
+                        type="button"
+                        onClick={startTimer}
+                        className="flex-1 py-3 bg-teal-500 text-black font-extrabold rounded-2xl text-sm shadow-lg active:scale-95 transition"
+                      >
+                        ▶ بدء المؤقت
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={pauseTimer}
+                        className="flex-1 py-3 bg-amber-500 text-black font-extrabold rounded-2xl text-sm shadow-lg active:scale-95 transition"
+                      >
+                        ⏸ إيقاف مؤقت
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={resetTimer}
+                      className="py-3 px-5 bg-gray-800 text-gray-300 font-bold rounded-2xl text-sm border border-gray-700 active:scale-95 transition"
+                    >
+                      ↺ إعادة
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* العداد الدائري التقليدي + و - */
+              <div className="flex items-center justify-center gap-6">
+                <button
+                  type="button"
+                  onClick={() => updateHabitCount(activeHabitCounter.id, getHabitCount(activeHabitCounter.id) - 1)}
+                  className="w-16 h-16 rounded-full bg-red-600/30 text-red-400 text-3xl font-extrabold flex items-center justify-center border border-red-500/40 active:scale-90 transition"
+                >
+                  -
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => updateHabitCount(activeHabitCounter.id, getHabitCount(activeHabitCounter.id) + 1)}
+                  style={{ backgroundColor: activeHabitCounter.color || '#3b82f6' }}
+                  className="w-40 h-40 rounded-full text-white text-5xl font-extrabold flex items-center justify-center shadow-2xl border-4 border-white/20 active:scale-95 transition-transform"
+                >
+                  {getHabitCount(activeHabitCounter.id)}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => updateHabitCount(activeHabitCounter.id, getHabitCount(activeHabitCounter.id) + 1)}
+                  className="w-16 h-16 rounded-full bg-emerald-600/30 text-emerald-400 text-3xl font-extrabold flex items-center justify-center border border-emerald-500/40 active:scale-90 transition"
+                >
+                  +
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* نافذة إضافة أو تعديل عادة */}
