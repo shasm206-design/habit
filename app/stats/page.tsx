@@ -14,6 +14,7 @@ export interface Habit {
   unit: string;
   color: string;
   repeatDays: number[];
+  category?: 'إيجابية' | 'سيئة';
 }
 
 export interface DayProgress {
@@ -50,7 +51,6 @@ export default function StatsPage() {
     return () => unsubscribeAuth();
   }, []);
 
-  // حساب نسبة يوم محدد
   const getDayPercentage = (dateStr: string) => {
     if (habits.length === 0) return 0;
     const dayData = dailyData[dateStr] || {};
@@ -61,33 +61,60 @@ export default function StatsPage() {
     return Math.round((totalAcc / habits.length) * 100);
   };
 
-  // توليد التواريخ السابقة
+  // جلب أيام الأسبوع الحالي بالتحديد من السبت إلى الجمعة
+  const getCurrentWeekSaturdayToFriday = () => {
+    const now = new Date();
+    const currentDayOfWeek = now.getDay(); // 0 = Sun, 6 = Sat
+    // حساب عدد الأيام للوصول للسبت الماضي (السبت = index 6)
+    const distanceToSaturday = (currentDayOfWeek + 1) % 7;
+    const saturday = new Date(now);
+    saturday.setDate(now.getDate() - distanceToSaturday);
+
+    const weekDates: { dateStr: string; dayName: string }[] = [];
+    const dayNames = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(saturday);
+      d.setDate(saturday.getDate() + i);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      weekDates.push({
+        dateStr: `${year}-${month}-${day}`,
+        dayName: dayNames[i],
+      });
+    }
+
+    return weekDates;
+  };
+
+  const currentWeekDays = getCurrentWeekSaturdayToFriday();
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayPct = getDayPercentage(todayStr);
+
+  const weekPct = Math.round(
+    currentWeekDays.reduce((acc, d) => acc + getDayPercentage(d.dateStr), 0) / 7
+  );
+
   const getPastDates = (numDays: number) => {
     const dates: string[] = [];
     const today = new Date();
     for (let i = 0; i < numDays; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      dates.push(d.toISOString().split('T')[0]);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      dates.push(`${year}-${month}-${day}`);
     }
     return dates;
   };
-
-  // إحصائيات اليوم، الأسبوع، الشهر
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todayPct = getDayPercentage(todayStr);
-
-  const last7Days = getPastDates(7);
-  const weekPct = Math.round(
-    last7Days.reduce((acc, d) => acc + getDayPercentage(d), 0) / 7
-  );
 
   const last30Days = getPastDates(30);
   const monthPct = Math.round(
     last30Days.reduce((acc, d) => acc + getDayPercentage(d), 0) / 30
   );
 
-  // حساب أداء عادة معينة في الشهر
   const getHabitMonthStats = (habit: Habit) => {
     if (last30Days.length === 0) return 0;
     const totalCompletions = last30Days.reduce((acc, dateStr) => {
@@ -126,7 +153,7 @@ export default function StatsPage() {
             activeTab === 'week' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
           }`}
         >
-          الأسبوع 🗓️
+          الأسبوع (سبت - جمعة) 🗓️
         </button>
         <button
           onClick={() => setActiveTab('month')}
@@ -138,11 +165,11 @@ export default function StatsPage() {
         </button>
       </div>
 
-      {/* ملخص الإنجاز الرئيسي بحسب التبويب */}
+      {/* ملخص الإنجاز الرئيسي */}
       <div className="bg-gradient-to-r from-[#18202e] to-[#131a26] p-6 rounded-3xl border border-gray-700/70 shadow-2xl mb-8 flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="space-y-2 text-center md:text-right">
           <span className="text-xs font-bold text-blue-400 uppercase tracking-widest block">
-            {activeTab === 'day' ? 'نسبة إنجاز اليوم' : activeTab === 'week' ? 'متوسط إنجاز آخر 7 أيام' : 'متوسط إنجاز آخر 30 يوماً'}
+            {activeTab === 'day' ? 'نسبة إنجاز اليوم' : activeTab === 'week' ? 'متوسط إنجاز الأسبوع الحالي' : 'متوسط إنجاز آخر 30 يوماً'}
           </span>
           <h2 className="text-4xl font-black">
             {activeTab === 'day' ? `%${todayPct}` : activeTab === 'week' ? `%${weekPct}` : `%${monthPct}`}
@@ -151,12 +178,11 @@ export default function StatsPage() {
             {activeTab === 'day'
               ? 'مبني على جميع العادات المستهدفة لهذا اليوم'
               : activeTab === 'week'
-              ? 'مستوى أدائك الأسبوعي العام'
+              ? 'مستوى أدائك من السبت وحتى الجمعة'
               : 'الالتزام المستدام خلال الشهر الحالي'}
           </p>
         </div>
 
-        {/* حلقة النسبة المئوية */}
         <div className="w-28 h-28 rounded-full border-4 border-blue-500/30 flex items-center justify-center bg-blue-600/10 shadow-inner relative">
           <span className="text-2xl font-black text-blue-400">
             {activeTab === 'day' ? `%${todayPct}` : activeTab === 'week' ? `%${weekPct}` : `%${monthPct}`}
@@ -164,16 +190,15 @@ export default function StatsPage() {
         </div>
       </div>
 
-      {/* رسم بياني بسيط لآخر 7 أيام (في تبويب الأسبوع) */}
+      {/* الرسم البياني الأسبوعي (من السبت إلى الجمعة) */}
       {activeTab === 'week' && (
         <div className="bg-[#161e2c] p-6 rounded-3xl border border-gray-700/60 shadow-lg mb-8">
-          <h3 className="text-sm font-bold text-gray-300 mb-4">تفاصيل آخر 7 أيام:</h3>
+          <h3 className="text-sm font-bold text-gray-300 mb-4">تفاصيل الأسبوع الحالي (السبت - الجمعة):</h3>
           <div className="flex justify-between items-end gap-2 h-36 pt-4">
-            {last7Days.slice().reverse().map((dateStr) => {
-              const pct = getDayPercentage(dateStr);
-              const dayName = new Date(dateStr).toLocaleDateString('ar-SA', { weekday: 'short' });
+            {currentWeekDays.map((item) => {
+              const pct = getDayPercentage(item.dateStr);
               return (
-                <div key={dateStr} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+                <div key={item.dateStr} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
                   <span className="text-[10px] font-bold text-blue-400">%{pct}</span>
                   <div className="w-full bg-gray-800 rounded-t-xl overflow-hidden h-24 flex items-end">
                     <div
@@ -181,7 +206,7 @@ export default function StatsPage() {
                       className="w-full bg-gradient-to-t from-blue-600 to-indigo-400 rounded-t-xl transition-all duration-500"
                     />
                   </div>
-                  <span className="text-[10px] text-gray-400 font-bold">{dayName}</span>
+                  <span className="text-[10px] text-gray-400 font-bold">{item.dayName}</span>
                 </div>
               );
             })}
@@ -189,7 +214,7 @@ export default function StatsPage() {
         </div>
       )}
 
-      {/* تفاصيل نسبة كل عادة بحد ذاتها */}
+      {/* قائمة العادات */}
       <div className="space-y-4">
         <h3 className="text-lg font-bold">معدل التزام العادات ({activeTab === 'month' ? 'شهرياً' : activeTab === 'week' ? 'أسبوعياً' : 'اليوم'})</h3>
         {habits.length === 0 ? (
@@ -229,7 +254,7 @@ export default function StatsPage() {
         )}
       </div>
 
-      {/* شريط التنقل السفلي الثابت مع الصفحات الثلاث */}
+      {/* شريط التنقل السفلي الثابت */}
       <div className="fixed bottom-0 left-0 right-0 bg-[#131a26]/90 backdrop-blur-lg border-t border-gray-800 py-3 px-6 flex justify-around items-center z-50">
         <Link href="/" className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition">
           <span className="text-xl">✅</span>
