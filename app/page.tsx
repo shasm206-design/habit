@@ -43,6 +43,7 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [activeMainTab, setActiveMainTab] = useState<'habits' | 'todo'>('habits');
   const [isEditMode, setIsEditMode] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // Modals & Timers
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -216,6 +217,32 @@ export default function Home() {
       localStorage.setItem('habit_tracker_daily', JSON.stringify(updatedDaily));
       localStorage.setItem('habit_tracker_tasks', JSON.stringify(updatedTasks));
     }
+  };
+
+  const moveHabit = (index: number, direction: 'up' | 'down') => {
+    const newHabits = [...habits];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= newHabits.length) return;
+    const temp = newHabits[index];
+    newHabits[index] = newHabits[targetIndex];
+    newHabits[targetIndex] = temp;
+    saveData(newHabits, dailyData);
+  };
+
+  const handleDragStart = (index: number) => {
+    if (!isEditMode) return;
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+    const updatedHabits = [...habits];
+    const draggedItem = updatedHabits[draggedIndex];
+    updatedHabits.splice(draggedIndex, 1);
+    updatedHabits.splice(index, 0, draggedItem);
+    setDraggedIndex(index);
+    saveData(updatedHabits, dailyData);
   };
 
   const getSelectedDayOfWeek = () => {
@@ -430,7 +457,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* 2. شريط النسبة المئوية وتقييم اليوم والكأس (عاد لمكانه الأصلي) */}
+      {/* 2. شريط النسبة المئوية وتقييم اليوم والكأس */}
       <div className={`bg-gradient-to-r ${status.bgGradient} ${status.textColor} p-4.5 rounded-3xl flex justify-between items-center px-6 shadow-xl mb-6 border border-white/20 transition-all duration-300`}>
         <div className="flex items-center gap-3.5">
           <span className="text-3xl filter drop-shadow">{status.trophy}</span>
@@ -476,7 +503,9 @@ export default function Home() {
       {activeMainTab === 'habits' ? (
         <>
           <div className="flex justify-between items-center mb-4 px-2">
-            <h2 className="text-2xl font-bold">عاداتي</h2>
+            <h2 className="text-2xl font-bold">
+              عاداتي {isEditMode && <span className="text-xs text-blue-400 font-normal">(استخدم الأسهم أو اسحب للترتيب)</span>}
+            </h2>
             <button
               onClick={() => setIsEditMode(!isEditMode)}
               className={`text-xs px-4 py-2 rounded-xl font-bold transition shadow-md ${
@@ -493,12 +522,18 @@ export default function Home() {
                 لا توجد عادات مسجلة لهذا اليوم المختار.
               </div>
             ) : (
-              visibleHabits.map((habit) => {
+              visibleHabits.map((habit, index) => {
                 const count = getHabitCount(habit.id);
                 const streak = getHabitStreak(habit);
 
                 return (
-                  <div key={habit.id} className="relative">
+                  <div 
+                    key={habit.id} 
+                    draggable={isEditMode}
+                    onDragStart={() => handleDragStart(index)}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    className="relative"
+                  >
                     {streak > 0 && (
                       <span className="absolute -top-2 left-4 z-10 text-[10px] bg-gradient-to-r from-amber-500 to-red-500 text-white px-2.5 py-0.5 rounded-full font-black shadow-md border border-amber-300/40 flex items-center gap-1">
                         🔥 مستمر: {streak} يوم
@@ -532,6 +567,8 @@ export default function Home() {
                         const updatedHabits = habits.filter((h) => h.id !== habit.id);
                         saveData(updatedHabits, dailyData);
                       }}
+                      onMoveUp={index > 0 ? () => moveHabit(index, 'up') : undefined}
+                      onMoveDown={index < visibleHabits.length - 1 ? () => moveHabit(index, 'down') : undefined}
                     />
                   </div>
                 );
@@ -616,7 +653,7 @@ export default function Home() {
         </button>
       )}
 
-      {/* 4. نافذة العداد / المؤقت الذكي والدائرة التفاعلية كاملة */}
+      {/* نافذة العداد / المؤقت الذكي والدائرة التفاعلية كاملة */}
       {activeHabitCounter && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex flex-col justify-between p-6 z-50 text-center select-none overflow-y-auto">
           <div className="flex justify-between items-center max-w-md mx-auto w-full pt-2">
