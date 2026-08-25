@@ -21,11 +21,21 @@ export interface DayProgress {
   [habitId: string]: number;
 }
 
+const MONTH_NAMES = [
+  'يناير (1)', 'فبراير (2)', 'مارس (3)', 'أبريل (4)',
+  'مايو (5)', 'يونيو (6)', 'يوليو (7)', 'أغسطس (8)',
+  'سبتمبر (9)', 'أكتوبر (10)', 'نوفمبر (11)', 'ديسمبر (12)'
+];
+
 export default function StatsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [dailyData, setDailyData] = useState<{ [date: string]: DayProgress }>({});
   const [activeTab, setActiveTab] = useState<'day' | 'week' | 'month'>('week');
+  
+  // حالة اختيار الشهر والسنة
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -64,8 +74,7 @@ export default function StatsPage() {
   // جلب أيام الأسبوع الحالي بالتحديد من السبت إلى الجمعة
   const getCurrentWeekSaturdayToFriday = () => {
     const now = new Date();
-    const currentDayOfWeek = now.getDay(); // 0 = Sun, 6 = Sat
-    // حساب عدد الأيام للوصول للسبت الماضي (السبت = index 6)
+    const currentDayOfWeek = now.getDay();
     const distanceToSaturday = (currentDayOfWeek + 1) % 7;
     const saturday = new Date(now);
     saturday.setDate(now.getDate() - distanceToSaturday);
@@ -88,6 +97,19 @@ export default function StatsPage() {
     return weekDates;
   };
 
+  // جلب جميع تواريخ الشهر التقويمي المختار
+  const getDatesOfSelectedMonth = () => {
+    const numDays = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+    const dates: string[] = [];
+    const monthStr = String(selectedMonth + 1).padStart(2, '0');
+
+    for (let i = 1; i <= numDays; i++) {
+      const dayStr = String(i).padStart(2, '0');
+      dates.push(`${selectedYear}-${monthStr}-${dayStr}`);
+    }
+    return dates;
+  };
+
   const currentWeekDays = getCurrentWeekSaturdayToFriday();
   const todayStr = new Date().toISOString().split('T')[0];
   const todayPct = getDayPercentage(todayStr);
@@ -96,32 +118,18 @@ export default function StatsPage() {
     currentWeekDays.reduce((acc, d) => acc + getDayPercentage(d.dateStr), 0) / 7
   );
 
-  const getPastDates = (numDays: number) => {
-    const dates: string[] = [];
-    const today = new Date();
-    for (let i = 0; i < numDays; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      dates.push(`${year}-${month}-${day}`);
-    }
-    return dates;
-  };
-
-  const last30Days = getPastDates(30);
+  const monthDates = getDatesOfSelectedMonth();
   const monthPct = Math.round(
-    last30Days.reduce((acc, d) => acc + getDayPercentage(d), 0) / 30
+    monthDates.reduce((acc, d) => acc + getDayPercentage(d), 0) / monthDates.length
   );
 
-  const getHabitMonthStats = (habit: Habit) => {
-    if (last30Days.length === 0) return 0;
-    const totalCompletions = last30Days.reduce((acc, dateStr) => {
+  const getHabitSelectedMonthStats = (habit: Habit) => {
+    if (monthDates.length === 0) return 0;
+    const totalCompletions = monthDates.reduce((acc, dateStr) => {
       const count = dailyData[dateStr]?.[habit.id] || 0;
       return acc + (count >= habit.targetCount ? 1 : count / habit.targetCount);
     }, 0);
-    return Math.min(100, Math.round((totalCompletions / 30) * 100));
+    return Math.min(100, Math.round((totalCompletions / monthDates.length) * 100));
   };
 
   return (
@@ -161,15 +169,37 @@ export default function StatsPage() {
             activeTab === 'month' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
           }`}
         >
-          الشهر 📈
+          الشهر التقويمي 📈
         </button>
       </div>
+
+      {/* اختيار الشهر التقويمي (يظهر فقط عند اختيار تبويب الشهر) */}
+      {activeTab === 'month' && (
+        <div className="bg-[#161e2c] p-4 rounded-2xl border border-gray-700/80 mb-6 flex justify-between items-center">
+          <label className="text-xs font-bold text-gray-300">اختر الشهر المالي/التقويمي:</label>
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(Number(e.target.value))}
+            className="bg-[#0d131d] text-blue-400 font-bold p-2 rounded-xl border border-gray-700 outline-none text-xs cursor-pointer"
+          >
+            {MONTH_NAMES.map((name, index) => (
+              <option key={index} value={index}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* ملخص الإنجاز الرئيسي */}
       <div className="bg-gradient-to-r from-[#18202e] to-[#131a26] p-6 rounded-3xl border border-gray-700/70 shadow-2xl mb-8 flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="space-y-2 text-center md:text-right">
           <span className="text-xs font-bold text-blue-400 uppercase tracking-widest block">
-            {activeTab === 'day' ? 'نسبة إنجاز اليوم' : activeTab === 'week' ? 'متوسط إنجاز الأسبوع الحالي' : 'متوسط إنجاز آخر 30 يوماً'}
+            {activeTab === 'day' 
+              ? 'نسبة إنجاز اليوم' 
+              : activeTab === 'week' 
+              ? 'متوسط إنجاز الأسبوع الحالي' 
+              : `متوسط إنجاز شهر ${MONTH_NAMES[selectedMonth]}`}
           </span>
           <h2 className="text-4xl font-black">
             {activeTab === 'day' ? `%${todayPct}` : activeTab === 'week' ? `%${weekPct}` : `%${monthPct}`}
@@ -179,7 +209,7 @@ export default function StatsPage() {
               ? 'مبني على جميع العادات المستهدفة لهذا اليوم'
               : activeTab === 'week'
               ? 'مستوى أدائك من السبت وحتى الجمعة'
-              : 'الالتزام المستدام خلال الشهر الحالي'}
+              : `إجمالي الالتزام لجميع أيام شهر ${MONTH_NAMES[selectedMonth]}`}
           </p>
         </div>
 
@@ -216,7 +246,9 @@ export default function StatsPage() {
 
       {/* قائمة العادات */}
       <div className="space-y-4">
-        <h3 className="text-lg font-bold">معدل التزام العادات ({activeTab === 'month' ? 'شهرياً' : activeTab === 'week' ? 'أسبوعياً' : 'اليوم'})</h3>
+        <h3 className="text-lg font-bold">
+          معدل التزام العادات ({activeTab === 'month' ? `شهر ${MONTH_NAMES[selectedMonth]}` : activeTab === 'week' ? 'أسبوعياً' : 'اليوم'})
+        </h3>
         {habits.length === 0 ? (
           <div className="text-center py-8 text-gray-500 text-sm bg-[#131a26] rounded-3xl border border-dashed border-gray-800">
             لا توجد عادات مضافة لحساب الإحصائيات.
@@ -225,7 +257,9 @@ export default function StatsPage() {
           habits.map((habit) => {
             const hPct = activeTab === 'day' 
               ? Math.min(100, Math.round(((dailyData[todayStr]?.[habit.id] || 0) / habit.targetCount) * 100))
-              : getHabitMonthStats(habit);
+              : activeTab === 'week'
+              ? Math.min(100, Math.round((currentWeekDays.reduce((acc, d) => acc + (dailyData[d.dateStr]?.[habit.id] || 0) / habit.targetCount, 0) / 7) * 100))
+              : getHabitSelectedMonthStats(habit);
 
             return (
               <div key={habit.id} className="bg-[#161e2c] p-4 rounded-3xl border border-gray-700/60 shadow-md space-y-2">
