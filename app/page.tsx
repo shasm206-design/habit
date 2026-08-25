@@ -43,12 +43,9 @@ export default function Home() {
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [activeHabitCounter, setActiveHabitCounter] = useState<Habit | null>(null);
 
-  // Timer
-  const [useLiveTimer, setUseLiveTimer] = useState(true);
+  // Timer State
   const [timerSecondsLeft, setTimerSecondsLeft] = useState<number>(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [isTimerFinished, setIsTimerFinished] = useState(false);
-  const [isOvertime, setIsOvertime] = useState(false);
 
   // Form State
   const [title, setTitle] = useState('');
@@ -107,11 +104,27 @@ export default function Home() {
     return () => unsubscribeAuth();
   }, []);
 
-  // ترحيل المهام غير المنجزة من الأيام السابقة لليوم الحالي
+  // تشغيل المؤقت الشكلي الحي
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (isTimerRunning && timerSecondsLeft > 0) {
+      interval = setInterval(() => {
+        setTimerSecondsLeft((prev) => prev - 1);
+      }, 1000);
+    } else if (timerSecondsLeft === 0 && isTimerRunning) {
+      setIsTimerRunning(false);
+      if (activeHabitCounter) {
+        updateHabitCount(activeHabitCounter.id, activeHabitCounter.targetCount);
+      }
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isTimerRunning, timerSecondsLeft, activeHabitCounter]);
+
   const handleCarryOverTasks = (allTasks: { [date: string]: TaskItem[] }, todayStr: string) => {
     const updated = { ...allTasks };
     const dates = Object.keys(updated).sort();
-    
     let carriedOver: TaskItem[] = [];
 
     dates.forEach((dateKey) => {
@@ -157,7 +170,6 @@ export default function Home() {
     }
   };
 
-  // الملاحة والسحب والتنظيم
   const moveHabit = (index: number, direction: 'up' | 'down') => {
     const newHabits = [...habits];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
@@ -270,7 +282,16 @@ export default function Home() {
     setIsAddModalOpen(false);
   };
 
-  // المهام
+  const openCounterModal = (habit: Habit) => {
+    setActiveHabitCounter(habit);
+    if (habit.type === 'مؤقت') {
+      const currentDoneMinutes = getHabitCount(habit.id);
+      const remainingMinutes = Math.max(0, habit.targetCount - currentDoneMinutes);
+      setTimerSecondsLeft(remainingMinutes * 60);
+      setIsTimerRunning(false);
+    }
+  };
+
   const currentDayTasks = tasks[selectedDate] || [];
 
   const addTask = (e: React.FormEvent) => {
@@ -300,7 +321,6 @@ export default function Home() {
     saveData(habits, dailyData, updatedTasks);
   };
 
-  // حساب الستريك الذكي
   const getHabitStreakStatus = (habit: Habit) => {
     let streakCount = 0;
     let bronzeUsedInRow = false;
@@ -349,7 +369,6 @@ export default function Home() {
     return { type: currentType, count: streakCount };
   };
 
-  // نسبة إنجاز اليوم المئوية (دمج العادات والمهام معا)
   const calculateTotalDayPercentage = () => {
     const habitsCount = visibleHabits.length;
     const tasksCount = currentDayTasks.length;
@@ -421,6 +440,12 @@ export default function Home() {
   };
 
   const status = getTrophyStatus(totalPercentage);
+
+  const formatTimerString = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
 
   return (
     <div className="max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 dir-rtl text-right select-none" dir="rtl">
@@ -528,10 +553,8 @@ export default function Home() {
                       onCounterClick={() => {
                         if (habit.category === 'سيئة') {
                           updateHabitCount(habit.id, count > 0 ? 0 : 1);
-                        } else if (habit.type === 'مهمة') {
-                          updateHabitCount(habit.id, count >= 1 ? 0 : 1);
                         } else {
-                          setActiveHabitCounter(habit);
+                          openCounterModal(habit);
                         }
                       }}
                       onQuickToggle={(e) => toggleQuickComplete(e, habit)}
@@ -617,6 +640,133 @@ export default function Home() {
         </div>
       )}
 
+      {/* نافذة العداد التفاعلي والمؤقت الحي مع الأزرار ⏱️📊 */}
+      {activeHabitCounter && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-sm space-y-6 text-white text-center shadow-2xl relative">
+            <button
+              onClick={() => {
+                setActiveHabitCounter(null);
+                setIsTimerRunning(false);
+              }}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white text-lg font-bold"
+            >
+              ✕
+            </button>
+
+            <div className="space-y-1">
+              <span 
+                style={{ color: activeHabitCounter.color || '#3b82f6' }}
+                className="text-xs font-black uppercase tracking-widest block"
+              >
+                {activeHabitCounter.type === 'مؤقت' ? '⏱️ مؤقت زمني' : '📊 العداد التفاعلي'}
+              </span>
+              <h3 className="text-xl font-extrabold">{activeHabitCounter.title}</h3>
+            </div>
+
+            {/* العداد نوع: مؤقت ⏱️ */}
+            {activeHabitCounter.type === 'مؤقت' && (
+              <div className="space-y-5">
+                <div className="w-36 h-36 rounded-full border-4 border-blue-500/40 mx-auto flex flex-col items-center justify-center bg-blue-600/10 shadow-inner relative">
+                  <span className="text-3xl font-black font-mono tracking-wider text-blue-400">
+                    {formatTimerString(timerSecondsLeft)}
+                  </span>
+                  <span className="text-[10px] text-gray-400 mt-1 font-bold">
+                    المستهدف: {activeHabitCounter.targetCount} دقيقة
+                  </span>
+                </div>
+
+                <div className="flex gap-2 justify-center">
+                  <button
+                    onClick={() => setIsTimerRunning(!isTimerRunning)}
+                    className={`flex-1 py-3 rounded-2xl font-bold text-sm shadow-lg transition active:scale-95 ${
+                      isTimerRunning 
+                        ? 'bg-amber-600 hover:bg-amber-500 text-white' 
+                        : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                    }`}
+                  >
+                    {isTimerRunning ? 'إيقاف مؤقت ⏸️' : 'تشغيل المؤقت ▶️'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      updateHabitCount(activeHabitCounter.id, activeHabitCounter.targetCount);
+                      setActiveHabitCounter(null);
+                      setIsTimerRunning(false);
+                    }}
+                    className="px-4 py-3 bg-blue-600 hover:bg-blue-500 rounded-2xl font-bold text-xs text-white"
+                  >
+                    إكمال الهدف ✔️
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* العداد نوع: عداد أرقام / كمية 📊 */}
+            {activeHabitCounter.type === 'عداد' && (
+              <div className="space-y-6">
+                <div className="flex justify-center items-center gap-4 bg-[#0d131d] p-4 rounded-2xl border border-gray-700">
+                  <button
+                    onClick={() => {
+                      const current = getHabitCount(activeHabitCounter.id);
+                      updateHabitCount(activeHabitCounter.id, Math.max(0, current - 1));
+                    }}
+                    className="w-12 h-12 bg-gray-800 hover:bg-gray-700 rounded-2xl font-black text-2xl text-white shadow-md active:scale-90 transition"
+                  >
+                    -
+                  </button>
+
+                  <div className="flex flex-col items-center px-4">
+                    <span className="text-4xl font-black text-blue-400">
+                      {getHabitCount(activeHabitCounter.id)}
+                    </span>
+                    <span className="text-xs text-gray-400 mt-1 font-bold">
+                      من أصل {activeHabitCounter.targetCount} {activeHabitCounter.unit}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      const current = getHabitCount(activeHabitCounter.id);
+                      updateHabitCount(activeHabitCounter.id, current + 1);
+                    }}
+                    className="w-12 h-12 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black text-2xl text-white shadow-md active:scale-90 transition"
+                  >
+                    +
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => {
+                    updateHabitCount(activeHabitCounter.id, activeHabitCounter.targetCount);
+                    setActiveHabitCounter(null);
+                  }}
+                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-bold text-sm text-white shadow-lg active:scale-95 transition"
+                >
+                  تسجيل إكمال الهدف بالكامل ✔️
+                </button>
+              </div>
+            )}
+
+            {/* العداد نوع: مهمة 🔖 */}
+            {activeHabitCounter.type === 'مهمة' && (
+              <div className="space-y-4">
+                <p className="text-xs text-gray-400">هل أتممت هذه المهمة اليوم؟</p>
+                <button
+                  onClick={() => {
+                    const current = getHabitCount(activeHabitCounter.id);
+                    updateHabitCount(activeHabitCounter.id, current >= 1 ? 0 : 1);
+                    setActiveHabitCounter(null);
+                  }}
+                  className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-bold text-sm text-white shadow-lg active:scale-95 transition"
+                >
+                  {getHabitCount(activeHabitCounter.id) >= 1 ? 'إلغاء الإنجاز ✕' : 'تأكيد الإنجاز ✔️'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* زر إضافة عادة */}
       {activeMainTab === 'habits' && (
         <button
@@ -636,7 +786,7 @@ export default function Home() {
         </button>
       )}
 
-      {/* نافذة إضافة أو تعديل عادة مع خيار تحديد الأيام S M T W T F S */}
+      {/* نافذة إضافة أو تعديل عادة */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl my-8">
@@ -701,7 +851,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* إعادة خيار أيام الأسبوع السبعة المخصص */}
               <div>
                 <label className="text-xs text-gray-400 block mb-2">تحديد أيام الظهور والتكرار</label>
                 <div className="flex justify-between gap-1 bg-[#0d131d] p-2 rounded-2xl border border-gray-700">
