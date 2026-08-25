@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 
 export interface Habit {
@@ -14,40 +14,27 @@ export interface Habit {
   unit: string;
   color: string;
   repeatDays: number[];
+  category?: 'إيجابية' | 'سيئة';
 }
 
 export interface DayProgress {
   [habitId: string]: number;
 }
 
+export interface TaskItem {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
 export default function HistoryPage() {
   const [user, setUser] = useState<User | null>(null);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [dailyData, setDailyData] = useState<{ [date: string]: DayProgress }>({});
-  const [dailyNotes, setDailyNotes] = useState<{ [date: string]: string }>({});
-  const [selectedDate, setSelectedDate] = useState<string>('');
-  const [noteInput, setNoteInput] = useState<string>('');
-
-  const getLocalDateString = (dateObj = new Date()) => {
-    const year = dateObj.getFullYear();
-    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-    const day = String(dateObj.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  const todayStr = getLocalDateString();
-  
-  // حساب تاريخ البارحة
-  const yesterdayObj = new Date();
-  yesterdayObj.setDate(yesterdayObj.getDate() - 1);
-  const yesterdayStr = getLocalDateString(yesterdayObj);
-
-  // السماح بالتعديل فقط إذا كان اليوم المحدد هو اليوم الحالي أو أمس
-  const isEditable = selectedDate === todayStr || selectedDate === yesterdayStr;
+  const [tasks, setTasks] = useState<{ [date: string]: TaskItem[] }>({});
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
-    setSelectedDate(todayStr);
-
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
@@ -57,7 +44,7 @@ export default function HistoryPage() {
             const data = docSnap.data();
             if (data.habits) setHabits(data.habits);
             if (data.dailyData) setDailyData(data.dailyData);
-            if (data.dailyNotes) setDailyNotes(data.dailyNotes);
+            if (data.tasks) setTasks(data.tasks);
           }
         });
         return () => unsubscribeSnapshot();
@@ -66,232 +53,114 @@ export default function HistoryPage() {
         if (savedHabits) setHabits(JSON.parse(savedHabits));
         const savedDaily = localStorage.getItem('habit_tracker_daily');
         if (savedDaily) setDailyData(JSON.parse(savedDaily));
-        const savedNotes = localStorage.getItem('habit_tracker_notes');
-        if (savedNotes) setDailyNotes(JSON.parse(savedNotes));
+        const savedTasks = localStorage.getItem('habit_tracker_tasks');
+        if (savedTasks) setTasks(JSON.parse(savedTasks));
       }
     });
 
     return () => unsubscribeAuth();
-  }, [todayStr]);
+  }, []);
 
-  useEffect(() => {
-    if (selectedDate && dailyNotes) {
-      setNoteInput(dailyNotes[selectedDate] || '');
-    }
-  }, [selectedDate, dailyNotes]);
-
-  const saveNote = async (newNote: string) => {
-    if (!isEditable) return;
-    const updatedNotes = { ...dailyNotes, [selectedDate]: newNote };
-    setDailyNotes(updatedNotes);
-
-    if (user) {
-      try {
-        const userDocRef = doc(db, 'users', user.uid);
-        await setDoc(userDocRef, { dailyNotes: updatedNotes }, { merge: true });
-      } catch (err) {
-        console.error('خطأ في حفظ الملاحظة:', err);
-      }
-    } else {
-      localStorage.setItem('habit_tracker_notes', JSON.stringify(updatedNotes));
-    }
-  };
-
-  const updateHabitCountInHistory = async (habitId: string, newCount: number) => {
-    if (!isEditable) return;
-    const currentDayProg = dailyData[selectedDate] || {};
-    const validCount = Math.max(0, newCount);
-    const updatedDay = { ...currentDayProg, [habitId]: validCount };
-    const updatedDaily = { ...dailyData, [selectedDate]: updatedDay };
-
-    setDailyData(updatedDaily);
-
-    if (user) {
-      try {
-        const userDocRef = doc(db, 'users', user.uid);
-        await setDoc(userDocRef, { dailyData: updatedDaily }, { merge: true });
-      } catch (err) {
-        console.error('خطأ في التعديل:', err);
-      }
-    } else {
-      localStorage.setItem('habit_tracker_daily', JSON.stringify(updatedDaily));
-    }
-  };
-
-  const getDaysInCurrentMonth = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const numDays = new Date(year, month + 1, 0).getDate();
-    
-    const daysArr: string[] = [];
-    for (let i = 1; i <= numDays; i++) {
-      const dayStr = i < 10 ? `0${i}` : `${i}`;
-      const monthStr = month + 1 < 10 ? `0${month + 1}` : `${month + 1}`;
-      daysArr.push(`${year}-${monthStr}-${dayStr}`);
-    }
-    return daysArr;
-  };
-
-  const monthDays = getDaysInCurrentMonth();
-  const currentDayData = dailyData[selectedDate] || {};
-
-  const getDayPercentage = (dateStr: string) => {
-    if (habits.length === 0) return 0;
-    const dayData = dailyData[dateStr] || {};
-    const totalAcc = habits.reduce((acc, h) => {
-      const count = dayData[h.id] || 0;
-      return acc + Math.min(1, count / (h.targetCount || 1));
-    }, 0);
-    return Math.round((totalAcc / habits.length) * 100);
-  };
-
-  const selectedPct = getDayPercentage(selectedDate);
+  const currentDayProgress = dailyData[selectedDate] || {};
+  const currentDayTasks = (tasks[selectedDate] || []).filter((t) => t.completed);
 
   return (
     <div className="max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 dir-rtl text-right select-none" dir="rtl">
       
-      {/* الترويسة */}
+      {/* الترويسة العليا */}
       <div className="flex justify-between items-center mb-6 pt-2 border-b border-gray-800 pb-4">
         <div>
           <h1 className="text-2xl font-black bg-gradient-to-r from-blue-400 via-indigo-300 to-white bg-clip-text text-transparent">
-            📅 سجل الأيام والملاحظات
+            📅 سجل الإنجازات والأرشيف
           </h1>
-          <p className="text-xs text-gray-400 mt-1">تعديل الإنجاز متاح ليوم أمس واليوم الحالي فقط</p>
+          <p className="text-xs text-gray-400 mt-1">تصفح إنجازاتك اليومية السابقة والمهام الشاطبة</p>
         </div>
+
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="bg-[#161e2c] text-blue-400 font-extrabold p-2.5 rounded-xl border border-gray-700 outline-none text-xs cursor-pointer shadow-md"
+        />
       </div>
 
-      {/* تقويم أيام الشهر الحالي */}
-      <div className="bg-[#161e2c] p-4 rounded-3xl border border-gray-700/60 shadow-lg mb-6">
-        <h3 className="text-xs font-bold text-gray-400 mb-3 px-1">تقويم الشهر الحالي:</h3>
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-          {monthDays.map((dateStr) => {
-            const isSelected = selectedDate === dateStr;
-            const dayNum = dateStr.split('-')[2];
-            const pct = getDayPercentage(dateStr);
+      {/* قائمة عادات اليوم المحدد */}
+      <div className="space-y-4 mb-8">
+        <h3 className="text-lg font-bold text-gray-200">العادات اليومية ({selectedDate})</h3>
+        {habits.length === 0 ? (
+          <div className="text-center py-8 text-gray-500 text-sm bg-[#131a26] rounded-3xl border border-dashed border-gray-800">
+            لا توجد عادات مسجلة لهذا اليوم.
+          </div>
+        ) : (
+          habits.map((habit) => {
+            const count = currentDayProgress[habit.id] || 0;
+            const isBad = habit.category === 'سيئة';
+            const isRelapsed = isBad && count > 0;
+            const isCompleted = isBad ? !isRelapsed : count >= habit.targetCount;
 
             return (
-              <button
-                key={dateStr}
-                onClick={() => setSelectedDate(dateStr)}
-                className={`min-w-[55px] p-3 rounded-2xl flex flex-col items-center gap-1 border transition ${
-                  isSelected
-                    ? 'bg-gradient-to-tr from-blue-600 to-indigo-600 border-blue-400 text-white shadow-lg shadow-blue-500/30 scale-105'
-                    : 'bg-[#0d131d] border-gray-700/80 text-gray-300 hover:border-gray-500'
+              <div
+                key={habit.id}
+                className={`p-4 rounded-3xl flex justify-between items-center border transition ${
+                  isRelapsed
+                    ? 'bg-red-950/30 border-red-800/60 text-red-300'
+                    : isCompleted
+                    ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-200'
+                    : 'bg-[#161e2c] border-gray-800 text-gray-400'
                 }`}
               >
-                <span className="text-sm font-black">{dayNum}</span>
-                <span className={`text-[10px] font-bold ${pct >= 100 ? 'text-emerald-400' : 'text-blue-400'}`}>
-                  %{pct}
+                <div className="flex items-center gap-3">
+                  <div
+                    style={{ backgroundColor: `${habit.color || '#3b82f6'}25`, color: habit.color || '#3b82f6' }}
+                    className="w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-sm border border-white/10"
+                  >
+                    {isBad ? (isRelapsed ? '⚠️' : '🛡️') : isCompleted ? '✓' : '📊'}
+                  </div>
+                  <div>
+                    <span className="font-bold text-sm block">{habit.title}</span>
+                    <span className="text-xs opacity-75">
+                      {isBad 
+                        ? (isRelapsed ? 'تم الانتكاس' : 'امتناع ناجح 🛡️') 
+                        : `${count} من ${habit.targetCount} ${habit.unit}`}
+                    </span>
+                  </div>
+                </div>
+
+                <span className={`text-xs font-black px-3 py-1 rounded-xl ${
+                  isRelapsed 
+                    ? 'bg-red-500/20 text-red-400' 
+                    : isCompleted 
+                    ? 'bg-emerald-500/20 text-emerald-300' 
+                    : 'bg-gray-800 text-gray-500'
+                }`}>
+                  {isRelapsed ? 'غير منجز ⚠️' : isCompleted ? 'مكتمل ✔️' : 'غير مكتمل'}
                 </span>
-              </button>
+              </div>
             );
-          })}
-        </div>
+          })
+        )}
       </div>
 
-      {/* تفاصيل اليوم المختار */}
-      <div className="bg-[#161e2c] p-6 rounded-3xl border border-gray-700/60 shadow-xl space-y-6 mb-8">
-        <div className="flex justify-between items-center border-b border-gray-700/60 pb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-blue-400">تفاصيل يوم: {selectedDate}</h2>
-              {isEditable ? (
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2.5 py-0.5 rounded-lg border border-emerald-500/30 font-bold">
-                  قابل للتعديل ✏️
-                </span>
-              ) : (
-                <span className="text-[10px] bg-gray-700/50 text-gray-400 px-2.5 py-0.5 rounded-lg border border-gray-600 font-bold">
-                  للعرض فقط 🔒
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-gray-400 mt-1">
-              {isEditable ? 'يمكنك استدراك وتعديل إنجازك لهذا اليوم' : 'الأيام السابقة محفوقة للعرض ولحفظ الدقة'}
-            </p>
+      {/* أرشيف المهام المنجزة لهذا اليوم (أسفل العادات) */}
+      <div className="space-y-3 pt-4 border-t border-gray-800">
+        <h3 className="text-sm font-bold text-gray-400">المهام المنجزة بأسفل اليوم (To-Do Archive)</h3>
+        {currentDayTasks.length === 0 ? (
+          <div className="text-center py-6 text-gray-500 text-xs bg-[#131a26] rounded-2xl border border-dashed border-gray-800">
+            لا توجد مهام منجزة ومرحلة لأرشيف هذا اليوم.
           </div>
-          <div className="bg-[#0d131d] px-4 py-2 rounded-2xl border border-gray-700 text-center">
-            <span className="text-[10px] text-gray-400 block font-bold">إنجاز اليوم</span>
-            <span className="text-lg font-black text-emerald-400">%{selectedPct}</span>
-          </div>
-        </div>
-
-        {/* حقل ملاحظات اليوم */}
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-gray-300 block">📝 ملاحظات هذا اليوم:</label>
-          <textarea
-            rows={3}
-            disabled={!isEditable}
-            placeholder={isEditable ? "أضف ملاحظاتك أو انطباعك عن إنجاز اليوم هنا..." : "الملاحظات غير قابلة للتعديل لهذا اليوم..."}
-            value={noteInput}
-            onChange={(e) => {
-              setNoteInput(e.target.value);
-              saveNote(e.target.value);
-            }}
-            className={`w-full bg-[#0d131d] border border-gray-700 p-3.5 rounded-2xl outline-none text-white text-sm transition resize-none ${
-              !isEditable ? 'opacity-60 cursor-not-allowed' : 'focus:border-blue-500'
-            }`}
-          />
-        </div>
-
-        {/* قائمة عادات اليوم المنجزة مع إمكانية تعديل يوم أمس واليوم */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-bold text-gray-300">إنجاز العادات لليوم:</h3>
-          {habits.length === 0 ? (
-            <div className="text-center py-6 text-gray-500 text-xs bg-[#0d131d] rounded-2xl border border-dashed border-gray-800">
-              لا توجد عادات مضافة.
+        ) : (
+          currentDayTasks.map((task) => (
+            <div
+              key={task.id}
+              className="p-3.5 bg-[#121924] border border-emerald-500/30 text-emerald-300 rounded-2xl flex items-center gap-3 text-xs font-bold"
+            >
+              <div className="w-5 h-5 rounded-lg bg-emerald-500 text-black flex items-center justify-center font-black text-[10px]">
+                ✓
+              </div>
+              <span className="line-through">{task.title}</span>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {habits.map((habit) => {
-                const count = currentDayData[habit.id] || 0;
-                const isDone = count >= habit.targetCount && habit.targetCount > 0;
-
-                return (
-                  <div
-                    key={habit.id}
-                    className={`p-3.5 rounded-2xl flex justify-between items-center border text-xs font-bold ${
-                      isDone
-                        ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-200'
-                        : 'bg-[#0d131d] border-gray-800 text-gray-400'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-base">{isDone ? '✅' : '⏳'}</span>
-                      <span>{habit.title}</span>
-                    </div>
-
-                    {isEditable ? (
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => updateHabitCountInHistory(habit.id, count - 1)}
-                          className="w-7 h-7 bg-red-600/30 text-red-400 rounded-lg font-black text-sm flex items-center justify-center border border-red-500/30 active:scale-90"
-                        >
-                          -
-                        </button>
-                        <span className="text-white px-1 font-bold">
-                          {count} / {habit.targetCount}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => updateHabitCountInHistory(habit.id, count + 1)}
-                          className="w-7 h-7 bg-emerald-600/30 text-emerald-400 rounded-lg font-black text-sm flex items-center justify-center border border-emerald-500/30 active:scale-90"
-                        >
-                          +
-                        </button>
-                      </div>
-                    ) : (
-                      <span>
-                        {count} / {habit.targetCount} {habit.unit}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+          ))
+        )}
       </div>
 
       {/* شريط التنقل السفلي الثابت */}
