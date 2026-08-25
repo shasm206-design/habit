@@ -321,7 +321,7 @@ export default function Home() {
     saveData(habits, dailyData, updatedTasks);
   };
 
-  // دالة حساب الستريك الذكي والمعدل (برونزية يوم واحد ووردة عند التكرار)
+  // دالة الستريك المعدلة (تحويل مباشر للوردة الذابلة عند تكرار 50% ليومين)
   const getHabitStreakStatus = (habit: Habit) => {
     let streakCount = 0;
     let bronzeConsecutiveCount = 0;
@@ -354,7 +354,7 @@ export default function Home() {
         } else if (pct >= 0.5) {
           bronzeConsecutiveCount++;
           if (bronzeConsecutiveCount > 1) {
-            if (i === 0) currentType = 'withered';
+            currentType = 'withered';
             break;
           } else {
             streakCount++;
@@ -417,7 +417,7 @@ export default function Home() {
       return { 
         trophy: '🥈', 
         label: 'جيد', 
-        desc: 'استمرار رائع وتقدم ملحوظ',
+        desc: 'استمرار رائع وتقدم ملحظ',
         bgGradient: 'from-slate-300 via-gray-400 to-slate-500',
         textColor: 'text-black'
       };
