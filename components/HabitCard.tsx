@@ -18,7 +18,7 @@ interface HabitCardProps {
   count: number;
   isEditMode: boolean;
   streakStatus?: {
-    type: 'gold' | 'bronze' | 'withered' | 'none';
+    type: 'gold' | 'bronze' | 'warrior' | 'none';
     count: number;
   };
   onCounterClick: () => void;
@@ -61,26 +61,26 @@ export default function HabitCard({
   };
 
   const getStreakBadge = () => {
-    if (!streakStatus || streakStatus.type === 'none' || streakStatus.count === 0) return null;
+    if (!streakStatus || streakStatus.type === 'none') return null;
 
-    if (streakStatus.type === 'gold') {
+    if (streakStatus.type === 'gold' && streakStatus.count > 0) {
       return (
         <span className="absolute -top-2 left-4 z-10 text-[10px] bg-gradient-to-r from-amber-500 to-red-500 text-white px-2.5 py-0.5 rounded-full font-black shadow-md border border-amber-300/40 flex items-center gap-1">
           🔥 ستريك مكتمل: {streakStatus.count} يوم
         </span>
       );
     }
-    if (streakStatus.type === 'bronze') {
+    if (streakStatus.type === 'bronze' && streakStatus.count > 0) {
       return (
         <span className="absolute -top-2 left-4 z-10 text-[10px] bg-gradient-to-r from-amber-700 to-amber-900 text-amber-200 px-2.5 py-0.5 rounded-full font-black shadow-md border border-amber-500/40 flex items-center gap-1">
           🥉 حماية الستريك: {streakStatus.count} يوم
         </span>
       );
     }
-    if (streakStatus.type === 'withered') {
+    if (streakStatus.type === 'warrior') {
       return (
-        <span className="absolute -top-2 left-4 z-10 text-[10px] bg-red-950 text-red-300 px-2.5 py-0.5 rounded-full font-bold border border-red-800 flex items-center gap-1">
-          🥀 ذبُل الستريك (تكرر 50%)
+        <span className="absolute -top-2 left-4 z-10 text-[10px] bg-red-950 text-red-200 px-2.5 py-0.5 rounded-full font-black border border-red-700 shadow-lg flex items-center gap-1">
+          ⚔️ أين المحارب؟
         </span>
       );
     }
