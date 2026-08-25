@@ -325,10 +325,9 @@ export default function Home() {
     saveData(habits, dailyData, updatedTasks);
   };
 
-  // دالة حساب الستريك المعدلة بدقة (برونزية لحماية الستريك الذهبي + أين المحارب عند التكرار)
+  // دالة الستريك المضبوطة بدقة (الحماية للـ 50% فأكثر فقط، وأصغر من 50% تظهر شارة المحارب فوراً)
   const getHabitStreakStatus = (habit: Habit) => {
     let streakCount = 0;
-    let uncompletedDaysInRow = 0;
     let currentType: 'gold' | 'bronze' | 'warrior' | 'none' = 'none';
 
     const today = new Date();
@@ -353,17 +352,13 @@ export default function Home() {
 
         if (pct >= 1) {
           streakCount++;
-          uncompletedDaysInRow = 0;
           if (i === 0) currentType = 'gold';
+        } else if (pct >= 0.5) {
+          streakCount++;
+          if (i === 0) currentType = 'bronze';
         } else {
-          uncompletedDaysInRow++;
-          if (uncompletedDaysInRow === 1) {
-            streakCount++; // حماية الستريك وعدم إنقاصه عند اليوم الأول من التعثر
-            if (i === 0) currentType = 'bronze';
-          } else {
-            if (i === 0) currentType = 'warrior';
-            break;
-          }
+          if (i === 0) currentType = 'warrior';
+          break;
         }
       }
     }
