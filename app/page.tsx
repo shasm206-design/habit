@@ -274,7 +274,8 @@ export default function Home() {
         unit: finalUnit,
         color: selectedColor,
         repeatDays: selectedDays,
-        category: habitCategory
+        category: habitCategory,
+        preferredMode: 'timer'
       };
       updatedHabits = [...habits, newHabit];
     }
@@ -287,13 +288,23 @@ export default function Home() {
 
   const openCounterModal = (habit: Habit) => {
     setActiveHabitCounter(habit);
-    setTimerMode('timer');
+    setTimerMode(habit.preferredMode || 'timer');
     if (habit.type === 'مؤقت') {
       const currentDoneMinutes = getHabitCount(habit.id);
       const remainingMinutes = Math.max(0, habit.targetCount - currentDoneMinutes);
       setTimerSecondsLeft(remainingMinutes * 60);
       setIsTimerRunning(false);
     }
+  };
+
+  const togglePreferredMode = (newMode: 'timer' | 'counter') => {
+    if (!activeHabitCounter) return;
+    setTimerMode(newMode);
+    setIsTimerRunning(false);
+    const updatedHabits = habits.map((h) =>
+      h.id === activeHabitCounter.id ? { ...h, preferredMode: newMode } : h
+    );
+    saveData(updatedHabits, dailyData);
   };
 
   const currentDayTasks = tasks[selectedDate] || [];
@@ -325,9 +336,10 @@ export default function Home() {
     saveData(habits, dailyData, updatedTasks);
   };
 
-  // دالة الستريك المضبوطة بدقة (الحماية للـ 50% فأكثر فقط، وأصغر من 50% تظهر شارة المحارب فوراً)
+  // دالة حساب الستريك المنقحة (حماية يوم واحد فقط للـ 50% والتكرار أو الأقل يظهر أين المحارب)
   const getHabitStreakStatus = (habit: Habit) => {
     let streakCount = 0;
+    let bronzeCountInRow = 0;
     let currentType: 'gold' | 'bronze' | 'warrior' | 'none' = 'none';
 
     const today = new Date();
@@ -352,10 +364,17 @@ export default function Home() {
 
         if (pct >= 1) {
           streakCount++;
+          bronzeCountInRow = 0;
           if (i === 0) currentType = 'gold';
         } else if (pct >= 0.5) {
-          streakCount++;
-          if (i === 0) currentType = 'bronze';
+          bronzeCountInRow++;
+          if (bronzeCountInRow > 1) {
+            if (i === 0) currentType = 'warrior';
+            break;
+          } else {
+            streakCount++;
+            if (i === 0) currentType = 'bronze';
+          }
         } else {
           if (i === 0) currentType = 'warrior';
           break;
@@ -637,7 +656,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* نافذة العداد التفاعلي والمؤقت الحي مع زر التحويل لـ عداد يدوي ⏱️📊 */}
+      {/* نافذة العداد التفاعلي والمؤقت مع المفتاح الانزلاقي Toggle Switch ⏱️📊 */}
       {activeHabitCounter && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-sm space-y-6 text-white text-center shadow-2xl relative">
@@ -664,29 +683,18 @@ export default function Home() {
             {/* العداد نوع: مؤقت ⏱️ */}
             {activeHabitCounter.type === 'مؤقت' && (
               <div className="space-y-5">
-                {/* زر التبديل بين المنبه/المؤقت التنازلي والعداد اليدوي */}
-                <div className="flex justify-center items-center gap-2 bg-[#0d131d] p-1 rounded-2xl border border-gray-700">
+                {/* المفتاح الانزلاقي (Toggle Switch) شبيه الجوال */}
+                <div className="flex justify-between items-center bg-[#0d131d] p-3 rounded-2xl border border-gray-700">
+                  <span className="text-xs font-bold text-gray-300">
+                    {timerMode === 'timer' ? '⏱️ تشغيل المؤقت التنازلي' : '📊 وضع العداد اليدوي'}
+                  </span>
                   <button
-                    onClick={() => {
-                      setTimerMode('timer');
-                      setIsTimerRunning(false);
-                    }}
-                    className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition ${
-                      timerMode === 'timer' ? 'bg-blue-600 text-white shadow' : 'text-gray-400'
+                    onClick={() => togglePreferredMode(timerMode === 'timer' ? 'counter' : 'timer')}
+                    className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 flex items-center ${
+                      timerMode === 'timer' ? 'bg-blue-600 justify-end' : 'bg-gray-700 justify-start'
                     }`}
                   >
-                    ⏱️ مؤقت تنازلي
-                  </button>
-                  <button
-                    onClick={() => {
-                      setTimerMode('counter');
-                      setIsTimerRunning(false);
-                    }}
-                    className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition ${
-                      timerMode === 'counter' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400'
-                    }`}
-                  >
-                    📊 عداد يدوي
+                    <div className="w-4 h-4 rounded-full bg-white shadow-md transform transition-transform" />
                   </button>
                 </div>
 
@@ -725,17 +733,17 @@ export default function Home() {
                     </div>
                   </>
                 ) : (
-                  /* واجهة العداد اليدوي للمؤقت عند تعطيل التنازلي */
+                  /* واجهة العداد اليدوي بـ +1 و -1 */
                   <div className="space-y-6">
                     <div className="flex justify-center items-center gap-4 bg-[#0d131d] p-4 rounded-2xl border border-gray-700">
                       <button
                         onClick={() => {
                           const current = getHabitCount(activeHabitCounter.id);
-                          updateHabitCount(activeHabitCounter.id, Math.max(0, current - 5));
+                          updateHabitCount(activeHabitCounter.id, Math.max(0, current - 1));
                         }}
                         className="w-12 h-12 bg-gray-800 hover:bg-gray-700 rounded-2xl font-black text-xl text-white shadow-md active:scale-90 transition"
                       >
-                        -5
+                        -1
                       </button>
 
                       <div className="flex flex-col items-center px-4">
@@ -750,11 +758,11 @@ export default function Home() {
                       <button
                         onClick={() => {
                           const current = getHabitCount(activeHabitCounter.id);
-                          updateHabitCount(activeHabitCounter.id, current + 5);
+                          updateHabitCount(activeHabitCounter.id, current + 1);
                         }}
                         className="w-12 h-12 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black text-xl text-white shadow-md active:scale-90 transition"
                       >
-                        +5
+                        +1
                       </button>
                     </div>
 

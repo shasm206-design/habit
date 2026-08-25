@@ -11,6 +11,7 @@ export interface Habit {
   color: string;
   repeatDays: number[];
   category?: 'إيجابية' | 'سيئة';
+  preferredMode?: 'timer' | 'counter';
 }
 
 interface HabitCardProps {
@@ -70,10 +71,10 @@ export default function HabitCard({
         </span>
       );
     }
-    if (streakStatus.type === 'bronze' && streakStatus.count > 0) {
+    if (streakStatus.type === 'bronze') {
       return (
         <span className="absolute -top-2 left-4 z-10 text-[10px] bg-gradient-to-r from-amber-700 to-amber-900 text-amber-200 px-2.5 py-0.5 rounded-full font-black shadow-md border border-amber-500/40 flex items-center gap-1">
-          🥉 حماية الستريك: {streakStatus.count} يوم
+          🥉 حماية الستريك: 1 يوم
         </span>
       );
     }
