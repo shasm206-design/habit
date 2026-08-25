@@ -32,7 +32,15 @@ export default function HistoryPage() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [dailyData, setDailyData] = useState<{ [date: string]: DayProgress }>({});
   const [tasks, setTasks] = useState<{ [date: string]: TaskItem[] }>({});
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  
+  const getLocalDateString = (dateObj = new Date()) => {
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [selectedDate, setSelectedDate] = useState<string>(getLocalDateString());
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -61,6 +69,28 @@ export default function HistoryPage() {
     return () => unsubscribeAuth();
   }, []);
 
+  // توليد أفق الأيام للشهر الحالي مع إمكانية التمرير والسحب السريع
+  const getDaysInCurrentMonth = () => {
+    const currentSelected = new Date(selectedDate || getLocalDateString());
+    const year = currentSelected.getFullYear();
+    const month = currentSelected.getMonth();
+    const daysCount = new Date(year, month + 1, 0).getDate();
+    const dayNames = ['أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
+
+    const daysList = [];
+    for (let i = 1; i <= daysCount; i++) {
+      const d = new Date(year, month, i);
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+      daysList.push({
+        dayNum: i,
+        dayName: dayNames[d.getDay()],
+        dateStr: dateStr,
+      });
+    }
+    return daysList;
+  };
+
+  const monthDays = getDaysInCurrentMonth();
   const currentDayProgress = dailyData[selectedDate] || {};
   const currentDayTasks = (tasks[selectedDate] || []).filter((t) => t.completed);
 
@@ -68,12 +98,12 @@ export default function HistoryPage() {
     <div className="max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 dir-rtl text-right select-none" dir="rtl">
       
       {/* الترويسة العليا */}
-      <div className="flex justify-between items-center mb-6 pt-2 border-b border-gray-800 pb-4">
+      <div className="flex justify-between items-center mb-4 pt-2 border-b border-gray-800 pb-4">
         <div>
           <h1 className="text-2xl font-black bg-gradient-to-r from-blue-400 via-indigo-300 to-white bg-clip-text text-transparent">
             📅 سجل الإنجازات والأرشيف
           </h1>
-          <p className="text-xs text-gray-400 mt-1">تصفح إنجازاتك اليومية السابقة والمهام الشاطبة</p>
+          <p className="text-xs text-gray-400 mt-1">تصفح إنجازاتك اليومية والمهام الشاطبة</p>
         </div>
 
         <input
@@ -84,9 +114,39 @@ export default function HistoryPage() {
         />
       </div>
 
+      {/* شريط الأيام الأفقي القابل للتمرير (إعادة الشريط المفقود) */}
+      <div className="mb-6 overflow-x-auto no-scrollbar py-2">
+        <div className="flex gap-2 min-w-max">
+          {monthDays.map((item) => {
+            const isSelected = item.dateStr === selectedDate;
+            const hasData = dailyData[item.dateStr] && Object.keys(dailyData[item.dateStr]).length > 0;
+
+            return (
+              <button
+                key={item.dateStr}
+                onClick={() => setSelectedDate(item.dateStr)}
+                className={`flex flex-col items-center justify-center w-14 h-16 rounded-2xl border transition duration-200 active:scale-95 ${
+                  isSelected
+                    ? 'bg-gradient-to-b from-blue-600 to-indigo-600 border-blue-400 text-white shadow-lg shadow-blue-500/30 scale-105'
+                    : 'bg-[#161e2c] border-gray-800 text-gray-400 hover:border-gray-700'
+                }`}
+              >
+                <span className="text-[10px] font-bold opacity-80">{item.dayName}</span>
+                <span className="text-base font-black my-0.5">{item.dayNum}</span>
+                {hasData && (
+                  <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-400'}`} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* قائمة عادات اليوم المحدد */}
       <div className="space-y-4 mb-8">
-        <h3 className="text-lg font-bold text-gray-200">العادات اليومية ({selectedDate})</h3>
+        <h3 className="text-lg font-bold text-gray-200">
+          العادات اليومية (<span className="text-blue-400">{selectedDate}</span>)
+        </h3>
         {habits.length === 0 ? (
           <div className="text-center py-8 text-gray-500 text-sm bg-[#131a26] rounded-3xl border border-dashed border-gray-800">
             لا توجد عادات مسجلة لهذا اليوم.
