@@ -321,9 +321,10 @@ export default function Home() {
     saveData(habits, dailyData, updatedTasks);
   };
 
+  // دالة حساب الستريك الذكي والمعدل (برونزية يوم واحد ووردة عند التكرار)
   const getHabitStreakStatus = (habit: Habit) => {
     let streakCount = 0;
-    let bronzeUsedInRow = false;
+    let bronzeConsecutiveCount = 0;
     let currentType: 'gold' | 'bronze' | 'withered' | 'none' = 'none';
 
     const today = new Date();
@@ -348,15 +349,15 @@ export default function Home() {
 
         if (pct >= 1) {
           streakCount++;
-          bronzeUsedInRow = false;
+          bronzeConsecutiveCount = 0;
           if (i === 0) currentType = 'gold';
         } else if (pct >= 0.5) {
-          if (bronzeUsedInRow) {
+          bronzeConsecutiveCount++;
+          if (bronzeConsecutiveCount > 1) {
             if (i === 0) currentType = 'withered';
             break;
           } else {
             streakCount++;
-            bronzeUsedInRow = true;
             if (i === 0) currentType = 'bronze';
           }
         } else {

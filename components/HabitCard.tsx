@@ -42,7 +42,6 @@ export default function HabitCard({
   onMoveDown,
 }: HabitCardProps) {
   const isBadHabit = habit.category === 'سيئة';
-  // للعادة السيئة: إذا كان الرقم 1 تعني انتكاسة
   const isRelapsed = isBadHabit && count > 0;
   
   const isCompleted = isBadHabit 
@@ -80,8 +79,8 @@ export default function HabitCard({
     }
     if (streakStatus.type === 'withered') {
       return (
-        <span className="absolute -top-2 left-4 z-10 text-[10px] bg-gray-800 text-gray-400 px-2.5 py-0.5 rounded-full font-bold border border-gray-700 flex items-center gap-1">
-          🥀 ذبُل الستريك
+        <span className="absolute -top-2 left-4 z-10 text-[10px] bg-red-950 text-red-300 px-2.5 py-0.5 rounded-full font-bold border border-red-800 flex items-center gap-1">
+          🥀 ذبُل الستريك (تكرر 50%)
         </span>
       );
     }
