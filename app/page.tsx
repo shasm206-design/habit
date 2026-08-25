@@ -44,7 +44,7 @@ export default function Home() {
   const [activeHabitCounter, setActiveHabitCounter] = useState<Habit | null>(null);
 
   // Mode inside counter modal for Timer habits
-  const [timerMode, setTimerMode] = useState<'timer' | 'counter'>('timer');
+  const [timerMode, setTimerMode] = useState<'timer' | 'counter'>('counter');
 
   // Timer State
   const [timerSecondsLeft, setTimerSecondsLeft] = useState<number>(0);
@@ -275,7 +275,7 @@ export default function Home() {
         color: selectedColor,
         repeatDays: selectedDays,
         category: habitCategory,
-        preferredMode: 'timer'
+        preferredMode: 'counter'
       };
       updatedHabits = [...habits, newHabit];
     }
@@ -288,7 +288,7 @@ export default function Home() {
 
   const openCounterModal = (habit: Habit) => {
     setActiveHabitCounter(habit);
-    setTimerMode(habit.preferredMode || 'timer');
+    setTimerMode(habit.preferredMode || 'counter');
     if (habit.type === 'مؤقت') {
       const currentDoneMinutes = getHabitCount(habit.id);
       const remainingMinutes = Math.max(0, habit.targetCount - currentDoneMinutes);
@@ -336,49 +336,45 @@ export default function Home() {
     saveData(habits, dailyData, updatedTasks);
   };
 
-  // دالة حساب الستريك المنقحة (حماية يوم واحد فقط للـ 50% والتكرار أو الأقل يظهر أين المحارب)
+  // دالة الستريك المضبوطة للحماية ليوم واحد فقط عند إنجاز %50 فأكثر، واليوم الثاني يتحول فورًا إلى "أين المحارب؟"
   const getHabitStreakStatus = (habit: Habit) => {
     let streakCount = 0;
-    let bronzeCountInRow = 0;
     let currentType: 'gold' | 'bronze' | 'warrior' | 'none' = 'none';
 
     const today = new Date();
 
-    for (let i = 0; i < 365; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
 
-      const count = dailyData[dateStr]?.[habit.id] || 0;
+    const countToday = dailyData[todayStr]?.[habit.id] || 0;
+    const countYesterday = dailyData[yesterdayStr]?.[habit.id] || 0;
 
-      if (habit.category === 'سيئة') {
-        if (count === 0) {
-          streakCount++;
-          if (i === 0) currentType = 'gold';
+    if (habit.category === 'سيئة') {
+      if (countToday === 0) {
+        currentType = 'gold';
+        streakCount = 1;
+      } else {
+        currentType = 'warrior';
+      }
+    } else {
+      const pctToday = countToday / (habit.targetCount || 1);
+      const pctYesterday = countYesterday / (habit.targetCount || 1);
+
+      if (pctToday >= 1) {
+        currentType = 'gold';
+        streakCount = 1;
+      } else if (pctToday >= 0.5) {
+        if (pctYesterday >= 0.5 && pctYesterday < 1) {
+          currentType = 'warrior';
         } else {
-          if (i === 0) currentType = 'warrior';
-          break;
+          currentType = 'bronze';
+          streakCount = 1;
         }
       } else {
-        const pct = count / (habit.targetCount || 1);
-
-        if (pct >= 1) {
-          streakCount++;
-          bronzeCountInRow = 0;
-          if (i === 0) currentType = 'gold';
-        } else if (pct >= 0.5) {
-          bronzeCountInRow++;
-          if (bronzeCountInRow > 1) {
-            if (i === 0) currentType = 'warrior';
-            break;
-          } else {
-            streakCount++;
-            if (i === 0) currentType = 'bronze';
-          }
-        } else {
-          if (i === 0) currentType = 'warrior';
-          break;
-        }
+        currentType = 'warrior';
       }
     }
 
@@ -656,162 +652,79 @@ export default function Home() {
         </div>
       )}
 
-      {/* نافذة العداد التفاعلي والمؤقت مع المفتاح الانزلاقي Toggle Switch ⏱️📊 */}
+      {/* نافذة العداد التفاعلي والمؤقت ⏱️📊 الشبيهة بالتصميم المرفق بالصورة */}
       {activeHabitCounter && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-sm space-y-6 text-white text-center shadow-2xl relative">
+          <div className="bg-[#121824] border border-gray-800 rounded-3xl p-6 w-full max-w-sm space-y-6 text-white text-center shadow-2xl relative">
             <button
               onClick={() => {
                 setActiveHabitCounter(null);
                 setIsTimerRunning(false);
               }}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white text-lg font-bold"
+              className="absolute top-4 left-4 text-gray-400 hover:text-white text-lg font-bold"
             >
               ✕
             </button>
 
-            <div className="space-y-1">
-              <span 
-                style={{ color: activeHabitCounter.color || '#3b82f6' }}
-                className="text-xs font-black uppercase tracking-widest block"
-              >
-                {activeHabitCounter.type === 'مؤقت' ? '⏱️ مؤقت زمني' : '📊 العداد التفاعلي'}
-              </span>
-              <h3 className="text-xl font-extrabold">{activeHabitCounter.title}</h3>
+            {/* بطاقة اسم العادة والإنجاز */}
+            <div className="bg-[#1c2536] p-4 rounded-2xl border border-gray-700/60 space-y-1 mt-4">
+              <h3 className="text-2xl font-black">{activeHabitCounter.title}</h3>
+              <p className="text-xs text-gray-400 font-bold">
+                إنجاز يوم {selectedDate}: <span className="text-blue-400">{getHabitCount(activeHabitCounter.id)}</span> من {activeHabitCounter.targetCount} {activeHabitCounter.unit}
+              </p>
             </div>
 
-            {/* العداد نوع: مؤقت ⏱️ */}
+            {/* مفتاح التبديل العلوي الانزلاقي للمؤقت */}
             {activeHabitCounter.type === 'مؤقت' && (
-              <div className="space-y-5">
-                {/* المفتاح الانزلاقي (Toggle Switch) شبيه الجوال */}
-                <div className="flex justify-between items-center bg-[#0d131d] p-3 rounded-2xl border border-gray-700">
-                  <span className="text-xs font-bold text-gray-300">
-                    {timerMode === 'timer' ? '⏱️ تشغيل المؤقت التنازلي' : '📊 وضع العداد اليدوي'}
-                  </span>
-                  <button
-                    onClick={() => togglePreferredMode(timerMode === 'timer' ? 'counter' : 'timer')}
-                    className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 flex items-center ${
-                      timerMode === 'timer' ? 'bg-blue-600 justify-end' : 'bg-gray-700 justify-start'
-                    }`}
-                  >
-                    <div className="w-4 h-4 rounded-full bg-white shadow-md transform transition-transform" />
-                  </button>
-                </div>
-
-                {timerMode === 'timer' ? (
-                  <>
-                    <div className="w-36 h-36 rounded-full border-4 border-blue-500/40 mx-auto flex flex-col items-center justify-center bg-blue-600/10 shadow-inner relative">
-                      <span className="text-3xl font-black font-mono tracking-wider text-blue-400">
-                        {formatTimerString(timerSecondsLeft)}
-                      </span>
-                      <span className="text-[10px] text-gray-400 mt-1 font-bold">
-                        المستهدف: {activeHabitCounter.targetCount} دقيقة
-                      </span>
-                    </div>
-
-                    <div className="flex gap-2 justify-center">
-                      <button
-                        onClick={() => setIsTimerRunning(!isTimerRunning)}
-                        className={`flex-1 py-3 rounded-2xl font-bold text-sm shadow-lg transition active:scale-95 ${
-                          isTimerRunning 
-                            ? 'bg-amber-600 hover:bg-amber-500 text-white' 
-                            : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                        }`}
-                      >
-                        {isTimerRunning ? 'إيقاف مؤقت ⏸️' : 'تشغيل المؤقت ▶️'}
-                      </button>
-                      <button
-                        onClick={() => {
-                          updateHabitCount(activeHabitCounter.id, activeHabitCounter.targetCount);
-                          setActiveHabitCounter(null);
-                          setIsTimerRunning(false);
-                        }}
-                        className="px-4 py-3 bg-blue-600 hover:bg-blue-500 rounded-2xl font-bold text-xs text-white"
-                      >
-                        إكمال الهدف ✔️
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  /* واجهة العداد اليدوي بـ +1 و -1 */
-                  <div className="space-y-6">
-                    <div className="flex justify-center items-center gap-4 bg-[#0d131d] p-4 rounded-2xl border border-gray-700">
-                      <button
-                        onClick={() => {
-                          const current = getHabitCount(activeHabitCounter.id);
-                          updateHabitCount(activeHabitCounter.id, Math.max(0, current - 1));
-                        }}
-                        className="w-12 h-12 bg-gray-800 hover:bg-gray-700 rounded-2xl font-black text-xl text-white shadow-md active:scale-90 transition"
-                      >
-                        -1
-                      </button>
-
-                      <div className="flex flex-col items-center px-4">
-                        <span className="text-4xl font-black text-blue-400">
-                          {getHabitCount(activeHabitCounter.id)}
-                        </span>
-                        <span className="text-xs text-gray-400 mt-1 font-bold">
-                          من أصل {activeHabitCounter.targetCount} دقيقة
-                        </span>
-                      </div>
-
-                      <button
-                        onClick={() => {
-                          const current = getHabitCount(activeHabitCounter.id);
-                          updateHabitCount(activeHabitCounter.id, current + 1);
-                        }}
-                        className="w-12 h-12 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black text-xl text-white shadow-md active:scale-90 transition"
-                      >
-                        +1
-                      </button>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        updateHabitCount(activeHabitCounter.id, activeHabitCounter.targetCount);
-                        setActiveHabitCounter(null);
-                      }}
-                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-bold text-sm text-white shadow-lg active:scale-95 transition"
-                    >
-                      تسجيل إكمال الهدف بالكامل ✔️
-                    </button>
-                  </div>
-                )}
+              <div className="flex justify-between items-center bg-[#0a0f18] p-2.5 rounded-2xl border border-gray-800">
+                <span className="text-xs font-bold text-gray-300">
+                  {timerMode === 'timer' ? '⏱️ مؤقت تنازلي حي' : '📊 عداد يدوي'}
+                </span>
+                <button
+                  onClick={() => togglePreferredMode(timerMode === 'timer' ? 'counter' : 'timer')}
+                  className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 flex items-center ${
+                    timerMode === 'timer' ? 'bg-blue-600 justify-end' : 'bg-gray-700 justify-start'
+                  }`}
+                >
+                  <div className="w-4 h-4 rounded-full bg-white shadow-md transform transition-transform" />
+                </button>
               </div>
             )}
 
-            {/* العداد نوع: عداد أرقام / كمية 📊 */}
-            {activeHabitCounter.type === 'عداد' && (
-              <div className="space-y-6">
-                <div className="flex justify-center items-center gap-4 bg-[#0d131d] p-4 rounded-2xl border border-gray-700">
-                  <button
-                    onClick={() => {
-                      const current = getHabitCount(activeHabitCounter.id);
-                      updateHabitCount(activeHabitCounter.id, Math.max(0, current - 1));
-                    }}
-                    className="w-12 h-12 bg-gray-800 hover:bg-gray-700 rounded-2xl font-black text-2xl text-white shadow-md active:scale-90 transition"
-                  >
-                    -
-                  </button>
-
-                  <div className="flex flex-col items-center px-4">
-                    <span className="text-4xl font-black text-blue-400">
-                      {getHabitCount(activeHabitCounter.id)}
-                    </span>
-                    <span className="text-xs text-gray-400 mt-1 font-bold">
-                      من أصل {activeHabitCounter.targetCount} {activeHabitCounter.unit}
-                    </span>
-                  </div>
-
+            {/* تصميم العداد الدائري الأزرق مع الأزرار الخضراء والحمراء الجانبية */}
+            {(activeHabitCounter.type !== 'مؤقت' || timerMode === 'counter') ? (
+              <div className="py-2">
+                <div className="flex justify-center items-center gap-5 my-4">
+                  
+                  {/* زر الزيادة (+) الأخضر الدائري */}
                   <button
                     onClick={() => {
                       const current = getHabitCount(activeHabitCounter.id);
                       updateHabitCount(activeHabitCounter.id, current + 1);
                     }}
-                    className="w-12 h-12 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black text-2xl text-white shadow-md active:scale-90 transition"
+                    className="w-16 h-16 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-3xl shadow-lg shadow-emerald-900/40 active:scale-90 transition flex items-center justify-center border border-emerald-400/40"
                   >
                     +
                   </button>
+
+                  {/* الكبسولة/الدائرة الزرقاء لعرض الرقم الحالي */}
+                  <div className="w-36 h-36 rounded-full bg-gradient-to-b from-blue-500 to-blue-600 border-4 border-blue-400/50 flex flex-col items-center justify-center shadow-2xl shadow-blue-500/30">
+                    <span className="text-5xl font-black text-white drop-shadow-md">
+                      {getHabitCount(activeHabitCounter.id)}
+                    </span>
+                  </div>
+
+                  {/* زر التنقيص (-) الأحمر الدائري */}
+                  <button
+                    onClick={() => {
+                      const current = getHabitCount(activeHabitCounter.id);
+                      updateHabitCount(activeHabitCounter.id, Math.max(0, current - 1));
+                    }}
+                    className="w-16 h-16 rounded-full bg-red-700 hover:bg-red-600 text-white font-black text-3xl shadow-lg shadow-red-950/40 active:scale-90 transition flex items-center justify-center border border-red-500/40"
+                  >
+                    -
+                  </button>
+
                 </div>
 
                 <button
@@ -819,27 +732,45 @@ export default function Home() {
                     updateHabitCount(activeHabitCounter.id, activeHabitCounter.targetCount);
                     setActiveHabitCounter(null);
                   }}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-bold text-sm text-white shadow-lg active:scale-95 transition"
+                  className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 rounded-2xl font-extrabold text-sm text-black shadow-lg shadow-emerald-500/20 active:scale-95 transition mt-4"
                 >
                   تسجيل إكمال الهدف بالكامل ✔️
                 </button>
               </div>
-            )}
+            ) : (
+              /* واجهة المؤقت التنازلي */
+              <div className="space-y-5 py-2">
+                <div className="w-36 h-36 rounded-full border-4 border-blue-500/40 mx-auto flex flex-col items-center justify-center bg-blue-600/10 shadow-inner relative">
+                  <span className="text-3xl font-black font-mono tracking-wider text-blue-400">
+                    {formatTimerString(timerSecondsLeft)}
+                  </span>
+                  <span className="text-[10px] text-gray-400 mt-1 font-bold">
+                    المستهدف: {activeHabitCounter.targetCount} دقيقة
+                  </span>
+                </div>
 
-            {/* العداد نوع: مهمة 🔖 */}
-            {activeHabitCounter.type === 'مهمة' && (
-              <div className="space-y-4">
-                <p className="text-xs text-gray-400">هل أتممت هذه المهمة اليوم؟</p>
-                <button
-                  onClick={() => {
-                    const current = getHabitCount(activeHabitCounter.id);
-                    updateHabitCount(activeHabitCounter.id, current >= 1 ? 0 : 1);
-                    setActiveHabitCounter(null);
-                  }}
-                  className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-bold text-sm text-white shadow-lg active:scale-95 transition"
-                >
-                  {getHabitCount(activeHabitCounter.id) >= 1 ? 'إلغاء الإنجاز ✕' : 'تأكيد الإنجاز ✔️'}
-                </button>
+                <div className="flex gap-2 justify-center">
+                  <button
+                    onClick={() => setIsTimerRunning(!isTimerRunning)}
+                    className={`flex-1 py-3 rounded-2xl font-bold text-sm shadow-lg transition active:scale-95 ${
+                      isTimerRunning 
+                        ? 'bg-amber-600 hover:bg-amber-500 text-white' 
+                        : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                    }`}
+                  >
+                    {isTimerRunning ? 'إيقاف مؤقت ⏸️' : 'تشغيل المؤقت ▶️'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      updateHabitCount(activeHabitCounter.id, activeHabitCounter.targetCount);
+                      setActiveHabitCounter(null);
+                      setIsTimerRunning(false);
+                    }}
+                    className="px-4 py-3 bg-blue-600 hover:bg-blue-500 rounded-2xl font-bold text-xs text-white"
+                  >
+                    إكمال الهدف ✔️
+                  </button>
+                </div>
               </div>
             )}
           </div>

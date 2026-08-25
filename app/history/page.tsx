@@ -75,7 +75,6 @@ export default function HistoryPage() {
     return () => unsubscribeAuth();
   }, []);
 
-  // التمرير التلقائي نحو المربع المحدد في الشريط الأفقي
   useEffect(() => {
     if (selectedDayRef.current) {
       selectedDayRef.current.scrollIntoView({
@@ -229,7 +228,7 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* شريط الأيام الأفقي القابل للتمرير التلقائي */}
+      {/* شريط الأيام الأفقي */}
       <div className="mb-6 overflow-x-auto no-scrollbar py-2 scroll-smooth">
         <div className="flex gap-2 min-w-max px-2">
           {monthDays.map((item) => {
@@ -281,7 +280,7 @@ export default function HistoryPage() {
         </div>
       )}
 
-      {/* قائمة عادات اليوم المحدد */}
+      {/* قائمة عادات اليوم المحدد مضافاً لها النسبة المئوية % بكل عادة */}
       <div className="space-y-4 mb-8">
         <h3 className="text-lg font-bold text-gray-200">
           العادات اليومية (<span className="text-blue-400">{selectedDate}</span>)
@@ -296,6 +295,7 @@ export default function HistoryPage() {
             const isBad = habit.category === 'سيئة';
             const isRelapsed = isBad && count > 0;
             const isCompleted = isBad ? !isRelapsed : count >= habit.targetCount;
+            const pct = isBad ? (isRelapsed ? 0 : 100) : Math.min(100, Math.round((count / (habit.targetCount || 1)) * 100));
 
             return (
               <div
@@ -316,7 +316,13 @@ export default function HistoryPage() {
                     {isBad ? (isRelapsed ? '⚠️' : '🛡️') : isCompleted ? '✓' : '📊'}
                   </div>
                   <div>
-                    <span className="font-bold text-sm block">{habit.title}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm block">{habit.title}</span>
+                      {/* النسبة المئوية % لكل عادة بالسجل */}
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                        %{pct}
+                      </span>
+                    </div>
                     <span className="text-xs opacity-75">
                       {isBad 
                         ? (isRelapsed ? 'تم الانتكاس' : 'امتناع ناجح 🛡️') 
@@ -373,7 +379,7 @@ export default function HistoryPage() {
         )}
       </div>
 
-      {/* أرشيف المهام المنجزة لهذا اليوم (أسفل العادات) */}
+      {/* أرشيف المهام المنجزة لهذا اليوم */}
       <div className="space-y-3 pt-4 border-t border-gray-800">
         <h3 className="text-sm font-bold text-gray-400">المهام المنجزة بأسفل اليوم (To-Do Archive)</h3>
         {currentDayTasks.length === 0 ? (
