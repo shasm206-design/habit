@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
@@ -46,6 +46,7 @@ export default function HistoryPage() {
   const yesterdayStr = getLocalDateString(yesterdayObj);
 
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  const selectedDayRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -74,7 +75,17 @@ export default function HistoryPage() {
     return () => unsubscribeAuth();
   }, []);
 
-  // حفظ التعديلات للتوافق التام مع الرئيسية والإحصائيات
+  // التمرير التلقائي نحو المربع المحدد في الشريط الأفقي
+  useEffect(() => {
+    if (selectedDayRef.current) {
+      selectedDayRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'center',
+      });
+    }
+  }, [selectedDate]);
+
   const saveData = async (
     updatedDaily: { [date: string]: DayProgress },
     updatedTasks = tasks
@@ -95,10 +106,8 @@ export default function HistoryPage() {
     }
   };
 
-  // السماح بالتعديل فقط لأيام اليوم وأمس
   const isEditableDate = selectedDate === todayStr || selectedDate === yesterdayStr;
 
-  // حساب نسبة أي يوم
   const calculateDayPercentage = (dateStr: string) => {
     const dayData = dailyData[dateStr] || {};
     const dayTasksList = tasks[dateStr] || [];
@@ -121,7 +130,6 @@ export default function HistoryPage() {
     return Math.round(((habitsScore + tasksScore) / totalItems) * 100);
   };
 
-  // تعديل إنجاز العادة في تاريخ محدد
   const handleUpdateHabitCount = (habitId: string, delta: number) => {
     if (!isEditableDate) return;
     const habit = habits.find((h) => h.id === habitId);
@@ -155,7 +163,6 @@ export default function HistoryPage() {
     saveData(dailyData, updatedTasks);
   };
 
-  // توليد أفق أيام الشهر
   const getDaysInCurrentMonth = () => {
     const currentSelected = new Date(selectedDate || todayStr);
     const year = currentSelected.getFullYear();
@@ -193,7 +200,6 @@ export default function HistoryPage() {
           <p className="text-xs text-gray-400 mt-1">تصفح واستدرك إنجازاتك اليومية والمهام الشاطبة</p>
         </div>
 
-        {/* أزرار التنقل السريع + مربع التحديد */}
         <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-end">
           <div className="flex gap-1.5 bg-[#161e2c] p-1 rounded-xl border border-gray-700">
             <button
@@ -223,9 +229,9 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* شريط الأيام الأفقي (اسم اليوم + رقم اليوم + النسبة المئوية %) */}
-      <div className="mb-6 overflow-x-auto no-scrollbar py-2">
-        <div className="flex gap-2 min-w-max">
+      {/* شريط الأيام الأفقي القابل للتمرير التلقائي */}
+      <div className="mb-6 overflow-x-auto no-scrollbar py-2 scroll-smooth">
+        <div className="flex gap-2 min-w-max px-2">
           {monthDays.map((item) => {
             const isSelected = item.dateStr === selectedDate;
             const isToday = item.dateStr === todayStr;
@@ -233,6 +239,7 @@ export default function HistoryPage() {
             return (
               <button
                 key={item.dateStr}
+                ref={isSelected ? selectedDayRef : null}
                 onClick={() => setSelectedDate(item.dateStr)}
                 className={`flex flex-col items-center justify-between w-16 h-20 p-2 rounded-2xl border transition duration-200 active:scale-95 ${
                   isSelected
@@ -318,7 +325,6 @@ export default function HistoryPage() {
                   </div>
                 </div>
 
-                {/* التحكم والتعديل إذا كان اليوم متاحاً للتعديل */}
                 {isEditableDate ? (
                   <div className="flex items-center gap-2">
                     {isBad ? (
