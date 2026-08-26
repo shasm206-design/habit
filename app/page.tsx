@@ -135,7 +135,6 @@ export default function Home() {
       setIsTimerRunning(remaining > 0);
       setIsTimerFinished(remaining === 0);
     } else if (storedPausedLeft) {
-      // إرجاع ثواني الإيقاف المؤقت بالضبط عند العودة بعد إغلاق النافذة
       setTimerSecondsLeft(parseInt(storedPausedLeft, 10));
       setIsTimerRunning(false);
       setIsTimerFinished(false);
@@ -201,7 +200,6 @@ export default function Home() {
 
   const pauseTimer = () => {
     if (!activeHabitCounter) return;
-    // حفظ القيمة المتبقية الحالية لمنع التصفير عند إغلاق النافذة بـ X
     localStorage.setItem(`timer_paused_${activeHabitCounter.id}`, timerSecondsLeft.toString());
     localStorage.removeItem(`timer_end_${activeHabitCounter.id}`);
     setIsTimerRunning(false);
@@ -450,7 +448,7 @@ export default function Home() {
     saveData(habits, dailyData, updatedTasks);
   };
 
-  // دالة حساب الستريك الدقيقة المعالجة للتخطي عبر أيام الحماية
+  // دالة حساب الستريك الشاملة لحساب يوم الحماية لجميع العادات وتوحيد الستريك بـ 2 يوم
   const getHabitStreakStatus = (habit: Habit) => {
     let streakCount = 0;
     let currentType: 'gold' | 'bronze' | 'warrior' | 'none' = 'none';
@@ -468,7 +466,7 @@ export default function Home() {
     const pctToday = countToday / (habit.targetCount || 1);
     const pctYesterday = countYesterday / (habit.targetCount || 1);
 
-    // حساب تتابع أيام الـ 100% مع المرور عبر يوم الحماية
+    // التراجع 365 يوماً للخلف مع التغاضي عن يوم واحد حماية لأي إنجاز أمس
     for (let i = 0; i < 365; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
@@ -478,8 +476,8 @@ export default function Home() {
 
       if (pct >= 1) {
         streakCount++;
-      } else if (i === 1 && pct < 1 && pctYesterday > 0) {
-        // إذا كان يوم أمس هو يوم حماية مكتسبة، نتخطاه لضم الأيام المكتملة السابقة
+      } else if (i === 1 && pct < 1) {
+        // تخطي يوم أمس دائماً ليُحسب كـ يوم حماية يربط ما قبله
         continue;
       } else if (i > 0) {
         break;
@@ -696,10 +694,8 @@ export default function Home() {
                         if (habit.category === 'سيئة') {
                           updateHabitCount(habit.id, count > 0 ? 0 : 1);
                         } else if (habit.type === 'مهمة' || habit.targetCount === 1) {
-                          // إكمال المهام العادية (1 مرة) بضغطة واحدة من البرة مباشرة دون فتح العداد
                           updateHabitCount(habit.id, count >= 1 ? 0 : 1);
                         } else {
-                          // فتح العداد المنبثق فقط للعادات ذات الأرقام والمستهدفات المتعددة
                           openCounterModal(habit);
                         }
                       }}
@@ -838,7 +834,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* نافذة العداد والتركيز التفاعلي الشبيهة بالصورة الثانية ⏱️📊 */}
+      {/* نافذة العداد والتركيز التفاعلي */}
       {activeHabitCounter && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-[#121824] border border-gray-800 rounded-3xl p-6 w-full max-w-sm space-y-6 text-white text-center shadow-2xl relative">
@@ -877,7 +873,7 @@ export default function Home() {
               </div>
             )}
 
-            {/* تصميم العداد الدائري الأزرق الزجاجي مع حركة الضغط Active Scaling */}
+            {/* تصميم العداد الدائري الأزرق */}
             {(activeHabitCounter.type !== 'مؤقت' || timerMode === 'counter') ? (
               <div className="py-2">
                 <div className="flex justify-center items-center gap-5 my-4">
@@ -893,7 +889,7 @@ export default function Home() {
                     +
                   </button>
 
-                  {/* الزر الدائري الكبير التفاعلي بالمنتصف (ينقر للزيادة مع حركة الضغط) */}
+                  {/* الزر الدائري الكبير بالمنتصف */}
                   <button
                     onClick={() => {
                       const current = getHabitCount(activeHabitCounter.id);
