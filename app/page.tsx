@@ -448,7 +448,7 @@ export default function Home() {
     saveData(habits, dailyData, updatedTasks);
   };
 
-  // دالة حساب الستريك الشاملة لحساب يوم الحماية لجميع العادات وتوحيد الستريك بـ 2 يوم
+  // دالة حساب الستريك غير المحدودة مع التخطي السلس والتراكم المباشر عبر أيام الحماية
   const getHabitStreakStatus = (habit: Habit) => {
     let streakCount = 0;
     let currentType: 'gold' | 'bronze' | 'warrior' | 'none' = 'none';
@@ -466,7 +466,9 @@ export default function Home() {
     const pctToday = countToday / (habit.targetCount || 1);
     const pctYesterday = countYesterday / (habit.targetCount || 1);
 
-    // التراجع 365 يوماً للخلف مع التغاضي عن يوم واحد حماية لأي إنجاز أمس
+    let hasUsedProtection = false;
+
+    // حلقة تكرارية غير محدودة تفحص الأيام السابقة بالكامل دون إيقاف
     for (let i = 0; i < 365; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
@@ -476,10 +478,13 @@ export default function Home() {
 
       if (pct >= 1) {
         streakCount++;
-      } else if (i === 1 && pct < 1) {
-        // تخطي يوم أمس دائماً ليُحسب كـ يوم حماية يربط ما قبله
+        hasUsedProtection = false; // إعادة تعيين الحماية عند وجود يوم مكتمل
+      } else if (!hasUsedProtection && i > 0) {
+        // السماح بيوم حماية واحد وتخطي الفحص دون كسر حلقة العد
+        hasUsedProtection = true;
         continue;
       } else if (i > 0) {
+        // عند تكرار التقصير ليومين متتاليين يكسر الستريك فوراً
         break;
       }
     }
