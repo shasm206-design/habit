@@ -448,7 +448,7 @@ export default function Home() {
     saveData(habits, dailyData, updatedTasks);
   };
 
-  // دالة حساب الستريك غير المحدودة مع التخطي السلس والتراكم المباشر عبر أيام الحماية
+  // دالة حساب الستريك الجذري المعدل مع تجميع كامل للأيام المكتملة والسماح بفجوة حماية
   const getHabitStreakStatus = (habit: Habit) => {
     let streakCount = 0;
     let currentType: 'gold' | 'bronze' | 'warrior' | 'none' = 'none';
@@ -466,9 +466,8 @@ export default function Home() {
     const pctToday = countToday / (habit.targetCount || 1);
     const pctYesterday = countYesterday / (habit.targetCount || 1);
 
-    let hasUsedProtection = false;
+    let consecutiveGaps = 0;
 
-    // حلقة تكرارية غير محدودة تفحص الأيام السابقة بالكامل دون إيقاف
     for (let i = 0; i < 365; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
@@ -478,14 +477,13 @@ export default function Home() {
 
       if (pct >= 1) {
         streakCount++;
-        hasUsedProtection = false; // إعادة تعيين الحماية عند وجود يوم مكتمل
-      } else if (!hasUsedProtection && i > 0) {
-        // السماح بيوم حماية واحد وتخطي الفحص دون كسر حلقة العد
-        hasUsedProtection = true;
-        continue;
+        consecutiveGaps = 0; // تنظيف الفجوات عند وجود يوم مكتمل
       } else if (i > 0) {
-        // عند تكرار التقصير ليومين متتاليين يكسر الستريك فوراً
-        break;
+        consecutiveGaps++;
+        // إذا تكررت الفجوات ليومين متتاليين يتم كسر التتابع
+        if (consecutiveGaps > 1) {
+          break;
+        }
       }
     }
 
