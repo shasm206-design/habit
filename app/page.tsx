@@ -119,12 +119,13 @@ export default function Home() {
     return () => unsubscribeAuth();
   }, []);
 
-  // إدارة المؤقت الذكي الحقيقي والتزامن عبر localStorage
+  // إدارة المؤقت الذكي الحقيقي الحافظ للحالة والإيقاف المؤقت
   useEffect(() => {
     if (!activeHabitCounter || activeHabitCounter.type !== 'مؤقت') return;
 
     const habitId = activeHabitCounter.id;
     const storedEndTime = localStorage.getItem(`timer_end_${habitId}`);
+    const storedPausedLeft = localStorage.getItem(`timer_paused_${habitId}`);
 
     if (storedEndTime) {
       const endTime = parseInt(storedEndTime, 10);
@@ -133,6 +134,11 @@ export default function Home() {
       setTimerSecondsLeft(remaining);
       setIsTimerRunning(remaining > 0);
       setIsTimerFinished(remaining === 0);
+    } else if (storedPausedLeft) {
+      // إرجاع ثواني الإيقاف المؤقت بالضبط عند العودة بعد إغلاق النافذة
+      setTimerSecondsLeft(parseInt(storedPausedLeft, 10));
+      setIsTimerRunning(false);
+      setIsTimerFinished(false);
     } else {
       const currentDoneMinutes = getHabitCount(habitId);
       const remainingMinutes = Math.max(0, activeHabitCounter.targetCount - currentDoneMinutes);
@@ -166,6 +172,7 @@ export default function Home() {
               setIsTimerRunning(false);
               setIsTimerFinished(true);
               localStorage.removeItem(`timer_end_${activeHabitCounter.id}`);
+              localStorage.removeItem(`timer_paused_${activeHabitCounter.id}`);
               updateHabitCount(activeHabitCounter.id, activeHabitCounter.targetCount);
             }
           }
@@ -180,6 +187,7 @@ export default function Home() {
     const duration = timerSecondsLeft > 0 ? timerSecondsLeft : activeHabitCounter.targetCount * 60;
     const endTime = Date.now() + duration * 1000;
     localStorage.setItem(`timer_end_${activeHabitCounter.id}`, endTime.toString());
+    localStorage.removeItem(`timer_paused_${activeHabitCounter.id}`);
     setIsTimerRunning(true);
     setIsTimerFinished(false);
   };
@@ -193,6 +201,8 @@ export default function Home() {
 
   const pauseTimer = () => {
     if (!activeHabitCounter) return;
+    // حفظ القيمة المتبقية الحالية لمنع التصفير عند إغلاق النافذة بـ X
+    localStorage.setItem(`timer_paused_${activeHabitCounter.id}`, timerSecondsLeft.toString());
     localStorage.removeItem(`timer_end_${activeHabitCounter.id}`);
     setIsTimerRunning(false);
   };
@@ -200,6 +210,7 @@ export default function Home() {
   const resetTimer = () => {
     if (!activeHabitCounter) return;
     localStorage.removeItem(`timer_end_${activeHabitCounter.id}`);
+    localStorage.removeItem(`timer_paused_${activeHabitCounter.id}`);
     setIsTimerRunning(false);
     setIsTimerFinished(false);
     setIsOvertime(false);
@@ -439,6 +450,7 @@ export default function Home() {
     saveData(habits, dailyData, updatedTasks);
   };
 
+  // دالة حساب الستريك الدقيقة المعالجة للتخطي عبر أيام الحماية
   const getHabitStreakStatus = (habit: Habit) => {
     let streakCount = 0;
     let currentType: 'gold' | 'bronze' | 'warrior' | 'none' = 'none';
@@ -453,19 +465,24 @@ export default function Home() {
     const countToday = dailyData[todayStr]?.[habit.id] || 0;
     const countYesterday = dailyData[yesterdayStr]?.[habit.id] || 0;
 
+    const pctToday = countToday / (habit.targetCount || 1);
+    const pctYesterday = countYesterday / (habit.targetCount || 1);
+
+    // حساب تتابع أيام الـ 100% مع المرور عبر يوم الحماية
     for (let i = 0; i < 365; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       const cnt = dailyData[dateStr]?.[habit.id] || 0;
-      
-      if (habit.category === 'سيئة') {
-        if (cnt === 0) streakCount++;
-        else if (i > 0) break;
-      } else {
-        const pct = cnt / (habit.targetCount || 1);
-        if (pct >= 1) streakCount++;
-        else if (i > 0) break;
+      const pct = cnt / (habit.targetCount || 1);
+
+      if (pct >= 1) {
+        streakCount++;
+      } else if (i === 1 && pct < 1 && pctYesterday > 0) {
+        // إذا كان يوم أمس هو يوم حماية مكتسبة، نتخطاه لضم الأيام المكتملة السابقة
+        continue;
+      } else if (i > 0) {
+        break;
       }
     }
 
@@ -476,9 +493,6 @@ export default function Home() {
         currentType = 'warrior';
       }
     } else {
-      const pctToday = countToday / (habit.targetCount || 1);
-      const pctYesterday = countYesterday / (habit.targetCount || 1);
-
       if (pctToday >= 1) {
         currentType = 'gold';
       } else {
