@@ -439,10 +439,6 @@ export default function Home() {
     saveData(habits, dailyData, updatedTasks);
   };
 
-  // دالة حساب الستريك والمحارب الدقيقة جداً:
-  // 100% تكمل الستريك (17 -> 18).
-  // أقل من 100% (سواء 0%، 50%، 80%) يعطي حماية 1 يوم وتجميد الأيام السابقة.
-  // في اليوم التالي إذا تكرر التقصير وعدم الوصول لـ 100% تظهر شارة المحارب.
   const getHabitStreakStatus = (habit: Habit) => {
     let streakCount = 0;
     let currentType: 'gold' | 'bronze' | 'warrior' | 'none' = 'none';
@@ -457,7 +453,6 @@ export default function Home() {
     const countToday = dailyData[todayStr]?.[habit.id] || 0;
     const countYesterday = dailyData[yesterdayStr]?.[habit.id] || 0;
 
-    // حساب الستريك المتراكم الإجمالي السابق
     for (let i = 0; i < 365; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
@@ -487,11 +482,9 @@ export default function Home() {
       if (pctToday >= 1) {
         currentType = 'gold';
       } else {
-        // إذا كان بالأمس أيضاً أقل من 100%، يسقط اليوم إلى المحارب
         if (pctYesterday < 1 && dailyData[yesterdayStr] !== undefined) {
           currentType = 'warrior';
         } else {
-          // أول يوم حماية لأي نسبة أقل من 100%
           currentType = 'bronze';
         }
       }
@@ -688,7 +681,11 @@ export default function Home() {
                       onCounterClick={() => {
                         if (habit.category === 'سيئة') {
                           updateHabitCount(habit.id, count > 0 ? 0 : 1);
+                        } else if (habit.type === 'مهمة' || habit.targetCount === 1) {
+                          // إكمال المهام العادية (1 مرة) بضغطة واحدة من البرة مباشرة دون فتح العداد
+                          updateHabitCount(habit.id, count >= 1 ? 0 : 1);
                         } else {
+                          // فتح العداد المنبثق فقط للعادات ذات الأرقام والمستهدفات المتعددة
                           openCounterModal(habit);
                         }
                       }}
@@ -775,7 +772,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* نافذة تسجيل الدخول (Auth Modal) المستعادة بالكامل */}
+      {/* نافذة تسجيل الدخول (Auth Modal) */}
       {isAuthModalOpen && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-sm space-y-4 text-white shadow-2xl relative">
