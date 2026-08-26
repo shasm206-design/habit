@@ -2,9 +2,16 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signInWithPopup, 
+  signOut, 
+  onAuthStateChanged, 
+  User 
+} from 'firebase/auth';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { auth, db, googleProvider } from '../lib/firebase';
 import HabitCard, { Habit } from '../components/HabitCard';
 
 export interface DayProgress {
@@ -38,19 +45,24 @@ export default function Home() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
-  // Modals
+  // Modals & Timers
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [activeHabitCounter, setActiveHabitCounter] = useState<Habit | null>(null);
 
-  // Mode inside counter modal for Timer habits
+  // Timer States
   const [timerMode, setTimerMode] = useState<'timer' | 'counter'>('counter');
-
-  // Timer State
   const [timerSecondsLeft, setTimerSecondsLeft] = useState<number>(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [isTimerFinished, setIsTimerFinished] = useState(false);
+  const [isOvertime, setIsOvertime] = useState(false);
 
   // Form State
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
   const [title, setTitle] = useState('');
   const [habitType, setHabitType] = useState<'عداد' | 'مؤقت' | 'مهمة'>('عداد');
   const [habitCategory, setHabitCategory] = useState<'إيجابية' | 'سيئة'>('إيجابية');
@@ -107,23 +119,94 @@ export default function Home() {
     return () => unsubscribeAuth();
   }, []);
 
-  // تشغيل المؤقت الشكلي الحي
+  // إدارة المؤقت الذكي الحقيقي والتزامن عبر localStorage
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-    if (isTimerRunning && timerSecondsLeft > 0) {
-      interval = setInterval(() => {
-        setTimerSecondsLeft((prev) => prev - 1);
-      }, 1000);
-    } else if (timerSecondsLeft === 0 && isTimerRunning) {
+    if (!activeHabitCounter || activeHabitCounter.type !== 'مؤقت') return;
+
+    const habitId = activeHabitCounter.id;
+    const storedEndTime = localStorage.getItem(`timer_end_${habitId}`);
+
+    if (storedEndTime) {
+      const endTime = parseInt(storedEndTime, 10);
+      const now = Date.now();
+      const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
+      setTimerSecondsLeft(remaining);
+      setIsTimerRunning(remaining > 0);
+      setIsTimerFinished(remaining === 0);
+    } else {
+      const currentDoneMinutes = getHabitCount(habitId);
+      const remainingMinutes = Math.max(0, activeHabitCounter.targetCount - currentDoneMinutes);
+      setTimerSecondsLeft(remainingMinutes * 60);
       setIsTimerRunning(false);
-      if (activeHabitCounter) {
-        updateHabitCount(activeHabitCounter.id, activeHabitCounter.targetCount);
-      }
+      setIsTimerFinished(false);
+      setIsOvertime(false);
     }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isTimerRunning, timerSecondsLeft, activeHabitCounter]);
+  }, [activeHabitCounter]);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isTimerRunning && activeHabitCounter && activeHabitCounter.type === 'مؤقت') {
+      timer = setInterval(() => {
+        if (isOvertime) {
+          setTimerSecondsLeft((prev) => {
+            const next = prev + 1;
+            if (next % 60 === 0) {
+              const currentMins = getHabitCount(activeHabitCounter.id);
+              updateHabitCount(activeHabitCounter.id, currentMins + 1);
+            }
+            return next;
+          });
+        } else {
+          const storedEndTime = localStorage.getItem(`timer_end_${activeHabitCounter.id}`);
+          if (storedEndTime) {
+            const remaining = Math.max(0, Math.floor((parseInt(storedEndTime, 10) - Date.now()) / 1000));
+            setTimerSecondsLeft(remaining);
+
+            if (remaining <= 0) {
+              setIsTimerRunning(false);
+              setIsTimerFinished(true);
+              localStorage.removeItem(`timer_end_${activeHabitCounter.id}`);
+              updateHabitCount(activeHabitCounter.id, activeHabitCounter.targetCount);
+            }
+          }
+        }
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [isTimerRunning, isOvertime, activeHabitCounter]);
+
+  const startTimer = () => {
+    if (!activeHabitCounter) return;
+    const duration = timerSecondsLeft > 0 ? timerSecondsLeft : activeHabitCounter.targetCount * 60;
+    const endTime = Date.now() + duration * 1000;
+    localStorage.setItem(`timer_end_${activeHabitCounter.id}`, endTime.toString());
+    setIsTimerRunning(true);
+    setIsTimerFinished(false);
+  };
+
+  const startOvertime = () => {
+    setIsOvertime(true);
+    setTimerSecondsLeft(0);
+    setIsTimerRunning(true);
+    setIsTimerFinished(false);
+  };
+
+  const pauseTimer = () => {
+    if (!activeHabitCounter) return;
+    localStorage.removeItem(`timer_end_${activeHabitCounter.id}`);
+    setIsTimerRunning(false);
+  };
+
+  const resetTimer = () => {
+    if (!activeHabitCounter) return;
+    localStorage.removeItem(`timer_end_${activeHabitCounter.id}`);
+    setIsTimerRunning(false);
+    setIsTimerFinished(false);
+    setIsOvertime(false);
+    const currentDone = getHabitCount(activeHabitCounter.id);
+    const remaining = Math.max(0, activeHabitCounter.targetCount - currentDone);
+    setTimerSecondsLeft(remaining * 60);
+  };
 
   const handleCarryOverTasks = (allTasks: { [date: string]: TaskItem[] }, todayStr: string) => {
     const updated = { ...allTasks };
@@ -197,6 +280,32 @@ export default function Home() {
     updatedHabits.splice(index, 0, draggedItem);
     setDraggedIndex(index);
     saveData(updatedHabits, dailyData);
+  };
+
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    try {
+      if (isSignUp) {
+        await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+      setIsAuthModalOpen(false);
+      setEmail('');
+      setPassword('');
+    } catch (err: any) {
+      setAuthError(err.message || 'حدث خطأ في تسجيل الدخول');
+    }
+  };
+
+  const handleGoogleAuth = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+      setIsAuthModalOpen(false);
+    } catch (err: any) {
+      setAuthError(err.message || 'حدث خطأ في تسجيل الدخول عبر Google');
+    }
   };
 
   const getSelectedDayOfWeek = () => {
@@ -289,12 +398,6 @@ export default function Home() {
   const openCounterModal = (habit: Habit) => {
     setActiveHabitCounter(habit);
     setTimerMode(habit.preferredMode || 'counter');
-    if (habit.type === 'مؤقت') {
-      const currentDoneMinutes = getHabitCount(habit.id);
-      const remainingMinutes = Math.max(0, habit.targetCount - currentDoneMinutes);
-      setTimerSecondsLeft(remainingMinutes * 60);
-      setIsTimerRunning(false);
-    }
   };
 
   const togglePreferredMode = (newMode: 'timer' | 'counter') => {
@@ -336,13 +439,15 @@ export default function Home() {
     saveData(habits, dailyData, updatedTasks);
   };
 
-  // دالة الستريك المضبوطة للحماية ليوم واحد فقط عند إنجاز %50 فأكثر، واليوم الثاني يتحول فورًا إلى "أين المحارب؟"
+  // دالة حساب الستريك والمحارب الدقيقة جداً:
+  // 100% تكمل الستريك (17 -> 18).
+  // أقل من 100% (سواء 0%، 50%، 80%) يعطي حماية 1 يوم وتجميد الأيام السابقة.
+  // في اليوم التالي إذا تكرر التقصير وعدم الوصول لـ 100% تظهر شارة المحارب.
   const getHabitStreakStatus = (habit: Habit) => {
     let streakCount = 0;
     let currentType: 'gold' | 'bronze' | 'warrior' | 'none' = 'none';
 
     const today = new Date();
-
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     
     const yesterday = new Date(today);
@@ -352,10 +457,26 @@ export default function Home() {
     const countToday = dailyData[todayStr]?.[habit.id] || 0;
     const countYesterday = dailyData[yesterdayStr]?.[habit.id] || 0;
 
+    // حساب الستريك المتراكم الإجمالي السابق
+    for (let i = 0; i < 365; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const cnt = dailyData[dateStr]?.[habit.id] || 0;
+      
+      if (habit.category === 'سيئة') {
+        if (cnt === 0) streakCount++;
+        else if (i > 0) break;
+      } else {
+        const pct = cnt / (habit.targetCount || 1);
+        if (pct >= 1) streakCount++;
+        else if (i > 0) break;
+      }
+    }
+
     if (habit.category === 'سيئة') {
       if (countToday === 0) {
         currentType = 'gold';
-        streakCount = 1;
       } else {
         currentType = 'warrior';
       }
@@ -365,16 +486,14 @@ export default function Home() {
 
       if (pctToday >= 1) {
         currentType = 'gold';
-        streakCount = 1;
-      } else if (pctToday >= 0.5) {
-        if (pctYesterday >= 0.5 && pctYesterday < 1) {
+      } else {
+        // إذا كان بالأمس أيضاً أقل من 100%، يسقط اليوم إلى المحارب
+        if (pctYesterday < 1 && dailyData[yesterdayStr] !== undefined) {
           currentType = 'warrior';
         } else {
+          // أول يوم حماية لأي نسبة أقل من 100%
           currentType = 'bronze';
-          streakCount = 1;
         }
-      } else {
-        currentType = 'warrior';
       }
     }
 
@@ -476,9 +595,13 @@ export default function Home() {
           </div>
         </div>
 
-        {user && (
+        {user ? (
           <button onClick={() => signOut(auth)} className="text-xs bg-red-500/20 text-red-400 px-4 py-2 rounded-xl font-bold border border-red-500/30 hover:bg-red-500/30 transition">
             تسجيل الخروج
+          </button>
+        ) : (
+          <button onClick={() => setIsAuthModalOpen(true)} className="text-xs bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 px-4 py-2 rounded-xl font-bold shadow-lg shadow-blue-600/30 transition">
+            تسجيل الدخول 🔐
           </button>
         )}
       </div>
@@ -652,7 +775,59 @@ export default function Home() {
         </div>
       )}
 
-      {/* نافذة العداد التفاعلي والمؤقت ⏱️📊 الشبيهة بالتصميم المرفق بالصورة */}
+      {/* نافذة تسجيل الدخول (Auth Modal) المستعادة بالكامل */}
+      {isAuthModalOpen && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-sm space-y-4 text-white shadow-2xl relative">
+            <button onClick={() => setIsAuthModalOpen(false)} className="absolute top-4 left-4 text-gray-400 text-lg font-bold">✕</button>
+            <h3 className="text-xl font-extrabold text-center">{isSignUp ? 'إنشاء حساب جديد' : 'تسجيل الدخول'}</h3>
+            
+            {authError && <div className="p-2.5 bg-red-500/20 border border-red-500/40 text-red-300 text-xs rounded-xl text-center font-bold">{authError}</div>}
+
+            <form onSubmit={handleAuthSubmit} className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">البريد الإلكتروني</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-[#0d131d] border border-gray-700 p-3 rounded-xl outline-none text-sm text-white focus:border-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">كلمة المرور</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-[#0d131d] border border-gray-700 p-3 rounded-xl outline-none text-sm text-white focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              <button type="submit" className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 font-bold text-sm rounded-xl shadow-lg active:scale-95 transition">
+                {isSignUp ? 'إنشاء الحساب' : 'الدخول'}
+              </button>
+            </form>
+
+            <div className="relative my-3 text-center">
+              <span className="bg-[#18202e] px-2 text-xs text-gray-500 relative z-10">أو</span>
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-800"></div></div>
+            </div>
+
+            <button onClick={handleGoogleAuth} className="w-full py-2.5 bg-white text-gray-900 font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md active:scale-95 transition">
+              <span>الدخول عبر Google</span>
+            </button>
+
+            <button onClick={() => setIsSignUp(!isSignUp)} className="w-full text-center text-xs text-blue-400 mt-2 block font-medium">
+              {isSignUp ? 'لديك حساب بالفعل؟ سجل دخولك' : 'ليس لديك حساب؟ أنشئ حساباً جديداً'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* نافذة العداد والتركيز التفاعلي الشبيهة بالصورة الثانية ⏱️📊 */}
       {activeHabitCounter && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-[#121824] border border-gray-800 rounded-3xl p-6 w-full max-w-sm space-y-6 text-white text-center shadow-2xl relative">
@@ -666,7 +841,7 @@ export default function Home() {
               ✕
             </button>
 
-            {/* بطاقة اسم العادة والإنجاز */}
+            {/* بطاقة العادة */}
             <div className="bg-[#1c2536] p-4 rounded-2xl border border-gray-700/60 space-y-1 mt-4">
               <h3 className="text-2xl font-black">{activeHabitCounter.title}</h3>
               <p className="text-xs text-gray-400 font-bold">
@@ -674,11 +849,11 @@ export default function Home() {
               </p>
             </div>
 
-            {/* مفتاح التبديل العلوي الانزلاقي للمؤقت */}
+            {/* مفتاح التبديل للمؤقت التنازلي والعداد */}
             {activeHabitCounter.type === 'مؤقت' && (
               <div className="flex justify-between items-center bg-[#0a0f18] p-2.5 rounded-2xl border border-gray-800">
                 <span className="text-xs font-bold text-gray-300">
-                  {timerMode === 'timer' ? '⏱️ مؤقت تنازلي حي' : '📊 عداد يدوي'}
+                  {timerMode === 'timer' ? '⏱️ مؤقت تنازلي حي (خلفية)' : '📊 عداد يدوي'}
                 </span>
                 <button
                   onClick={() => togglePreferredMode(timerMode === 'timer' ? 'counter' : 'timer')}
@@ -691,12 +866,12 @@ export default function Home() {
               </div>
             )}
 
-            {/* تصميم العداد الدائري الأزرق مع الأزرار الخضراء والحمراء الجانبية */}
+            {/* تصميم العداد الدائري الأزرق الزجاجي مع حركة الضغط Active Scaling */}
             {(activeHabitCounter.type !== 'مؤقت' || timerMode === 'counter') ? (
               <div className="py-2">
                 <div className="flex justify-center items-center gap-5 my-4">
                   
-                  {/* زر الزيادة (+) الأخضر الدائري */}
+                  {/* زر الزيادة (+) الأخضر */}
                   <button
                     onClick={() => {
                       const current = getHabitCount(activeHabitCounter.id);
@@ -707,14 +882,20 @@ export default function Home() {
                     +
                   </button>
 
-                  {/* الكبسولة/الدائرة الزرقاء لعرض الرقم الحالي */}
-                  <div className="w-36 h-36 rounded-full bg-gradient-to-b from-blue-500 to-blue-600 border-4 border-blue-400/50 flex flex-col items-center justify-center shadow-2xl shadow-blue-500/30">
+                  {/* الزر الدائري الكبير التفاعلي بالمنتصف (ينقر للزيادة مع حركة الضغط) */}
+                  <button
+                    onClick={() => {
+                      const current = getHabitCount(activeHabitCounter.id);
+                      updateHabitCount(activeHabitCounter.id, current + 1);
+                    }}
+                    className="w-36 h-36 rounded-full bg-gradient-to-b from-blue-500 to-blue-600 border-4 border-blue-400/50 flex flex-col items-center justify-center shadow-2xl shadow-blue-500/40 active:scale-95 transition-transform"
+                  >
                     <span className="text-5xl font-black text-white drop-shadow-md">
                       {getHabitCount(activeHabitCounter.id)}
                     </span>
-                  </div>
+                  </button>
 
-                  {/* زر التنقيص (-) الأحمر الدائري */}
+                  {/* زر التنقيص (-) الأحمر */}
                   <button
                     onClick={() => {
                       const current = getHabitCount(activeHabitCounter.id);
@@ -738,39 +919,62 @@ export default function Home() {
                 </button>
               </div>
             ) : (
-              /* واجهة المؤقت التنازلي */
+              /* واجهة المؤقت التنازلي التفاعلي الممتد */
               <div className="space-y-5 py-2">
                 <div className="w-36 h-36 rounded-full border-4 border-blue-500/40 mx-auto flex flex-col items-center justify-center bg-blue-600/10 shadow-inner relative">
                   <span className="text-3xl font-black font-mono tracking-wider text-blue-400">
                     {formatTimerString(timerSecondsLeft)}
                   </span>
                   <span className="text-[10px] text-gray-400 mt-1 font-bold">
-                    المستهدف: {activeHabitCounter.targetCount} دقيقة
+                    {isOvertime ? 'وقت إضافي ⏱️' : `المستهدف: ${activeHabitCounter.targetCount} دقيقة`}
                   </span>
                 </div>
 
-                <div className="flex gap-2 justify-center">
-                  <button
-                    onClick={() => setIsTimerRunning(!isTimerRunning)}
-                    className={`flex-1 py-3 rounded-2xl font-bold text-sm shadow-lg transition active:scale-95 ${
-                      isTimerRunning 
-                        ? 'bg-amber-600 hover:bg-amber-500 text-white' 
-                        : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                    }`}
-                  >
-                    {isTimerRunning ? 'إيقاف مؤقت ⏸️' : 'تشغيل المؤقت ▶️'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      updateHabitCount(activeHabitCounter.id, activeHabitCounter.targetCount);
-                      setActiveHabitCounter(null);
-                      setIsTimerRunning(false);
-                    }}
-                    className="px-4 py-3 bg-blue-600 hover:bg-blue-500 rounded-2xl font-bold text-xs text-white"
-                  >
-                    إكمال الهدف ✔️
-                  </button>
-                </div>
+                {isTimerFinished ? (
+                  <div className="space-y-2">
+                    <div className="p-2.5 bg-emerald-500/20 text-emerald-300 rounded-xl text-xs font-bold border border-emerald-500/30">
+                      🎉 مكتمل! يمكنك زيادة الوقت إضافياً.
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={startOvertime}
+                        className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl text-xs shadow-lg active:scale-95 transition"
+                      >
+                        أكمل الوقت ➕
+                      </button>
+                      <button
+                        onClick={() => setActiveHabitCounter(null)}
+                        className="flex-1 py-3 bg-gray-800 text-gray-300 font-bold rounded-2xl text-xs border border-gray-700 active:scale-95 transition"
+                      >
+                        إكتفاء 🏁
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 justify-center">
+                    {!isTimerRunning ? (
+                      <button
+                        onClick={startTimer}
+                        className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-2xl shadow-lg active:scale-95 transition"
+                      >
+                        ▶️ بدء المؤقت
+                      </button>
+                    ) : (
+                      <button
+                        onClick={pauseTimer}
+                        className="flex-1 py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold text-sm rounded-2xl shadow-lg active:scale-95 transition"
+                      >
+                        ⏸️ إيقاف مؤقت
+                      </button>
+                    )}
+                    <button
+                      onClick={resetTimer}
+                      className="px-4 py-3 bg-gray-800 text-gray-300 hover:text-white rounded-2xl font-bold text-xs border border-gray-700 active:scale-95 transition"
+                    >
+                      ↺ إعادة
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
