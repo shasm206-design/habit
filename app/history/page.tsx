@@ -24,6 +24,7 @@ export default function HistoryPage() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [dailyData, setDailyData] = useState<{ [date: string]: DayProgress }>({});
   const [notes, setNotes] = useState<{ [date: string]: string }>({});
+  const [tasks, setTasks] = useState<{ [date: string]: TaskItem[] }>({});
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [datesList, setDatesList] = useState<string[]>([]);
   const [dayNoteInput, setDayNoteInput] = useState<string>('');
@@ -39,7 +40,6 @@ export default function HistoryPage() {
     const todayStr = getLocalDateString();
     setSelectedDate(todayStr);
 
-    // توليد شريط الأيام (14 يوم سابقة مع اليوم والحديثة)
     const list: string[] = [];
     for (let i = -7; i <= 7; i++) {
       const d = new Date();
@@ -58,6 +58,7 @@ export default function HistoryPage() {
             if (data.habits) setHabits(data.habits);
             if (data.dailyData) setDailyData(data.dailyData);
             if (data.notes) setNotes(data.notes);
+            if (data.tasks) setTasks(data.tasks);
           }
         });
         return () => unsubscribeSnapshot();
@@ -68,13 +69,14 @@ export default function HistoryPage() {
         if (savedDaily) setDailyData(JSON.parse(savedDaily));
         const savedNotes = localStorage.getItem('habit_tracker_notes');
         if (savedNotes) setNotes(JSON.parse(savedNotes));
+        const savedTasks = localStorage.getItem('habit_tracker_tasks');
+        if (savedTasks) setTasks(JSON.parse(savedTasks));
       }
     });
 
     return () => unsubscribeAuth();
   }, []);
 
-  // تحديث نص الملاحظة عند تغيير اليوم المختار
   useEffect(() => {
     setDayNoteInput(notes[selectedDate] || '');
   }, [selectedDate, notes]);
@@ -154,6 +156,8 @@ export default function HistoryPage() {
     !h.repeatDays || h.repeatDays.includes(getDayOfWeekIndex(selectedDate))
   );
 
+  const currentDayTasks = tasks[selectedDate] || [];
+
   return (
     <div className="max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 dir-rtl text-right select-none" dir="rtl">
       
@@ -214,7 +218,7 @@ export default function HistoryPage() {
         💡 يمكنك التعديل والاستدراك على إنجازات ({selectedDate}) وتحديثها مباشرهً.
       </div>
 
-      {/* 3. الإضافة الجديدة: قسم ملاحظات اليوم (تحت شريط الأيام وفوق العادات) 📝 */}
+      {/* 3. قسم ملاحظات اليوم */}
       <div className="bg-[#161e2c] border border-gray-700/80 rounded-3xl p-4.5 mb-6 space-y-2 shadow-xl">
         <div className="flex items-center gap-2 text-sm font-bold text-blue-400">
           <span>📝</span>
@@ -230,7 +234,7 @@ export default function HistoryPage() {
       </div>
 
       {/* 4. قائمة العادات اليومية */}
-      <div className="space-y-4">
+      <div className="space-y-4 mb-8">
         <h2 className="text-lg font-extrabold text-gray-200">
           العادات اليومية ({selectedDate})
         </h2>
@@ -288,6 +292,42 @@ export default function HistoryPage() {
               </div>
             );
           })
+        )}
+      </div>
+
+      {/* 5. الميزة الجديدة: قسم المهام المنجزة بأسفل اليوم (To-Do Archive) 📝 */}
+      <div className="pt-4 border-t border-gray-800/80 space-y-4">
+        <h2 className="text-base font-extrabold text-gray-300">
+          المهام المنجزة بأسفل اليوم (To-Do Archive)
+        </h2>
+
+        {currentDayTasks.length === 0 ? (
+          <div className="p-4 bg-[#161e2c] border border-emerald-500/30 rounded-2xl text-emerald-400 text-xs font-bold flex items-center justify-between">
+            <span>لا توجد مهام مسجلة لهذا اليوم</span>
+            <div className="w-6 h-6 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
+              ✓
+            </div>
+          </div>
+        ) : (
+          currentDayTasks.map((task) => (
+            <div
+              key={task.id}
+              className={`p-4 rounded-2xl border flex items-center justify-between transition ${
+                task.completed
+                  ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-200'
+                  : 'bg-[#161e2c] border-gray-800 text-gray-300'
+              }`}
+            >
+              <span className={`text-sm font-bold ${task.completed ? 'line-through text-emerald-300' : ''}`}>
+                {task.title}
+              </span>
+              <div className={`w-6 h-6 rounded-lg border flex items-center justify-center font-bold text-xs ${
+                task.completed ? 'bg-emerald-500 border-emerald-400 text-black' : 'border-gray-600'
+              }`}>
+                {task.completed && '✓'}
+              </div>
+            </div>
+          ))
         )}
       </div>
 
