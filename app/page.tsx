@@ -47,7 +47,7 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [activeMainTab, setActiveMainTab] = useState<'habits' | 'todo'>('habits');
   const [isEditMode, setIsEditMode] = useState(false);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [touchStartIndex, setTouchStartIndex] = useState<number | null>(null);
 
   // Modals & Timers
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -286,7 +286,7 @@ export default function Home() {
     }
   };
 
-  // تعديل ودعم إعادة الترتيب بطلاقة وبدون مشاكل
+  // إعادة الترتيب المباشر بواسطة الأزرار المباشرة للأعلى وللأسفل
   const moveHabit = (index: number, direction: 'up' | 'down') => {
     const currentVisible = visibleHabits;
     const targetVisibleIndex = direction === 'up' ? index - 1 : index + 1;
@@ -305,23 +305,6 @@ export default function Home() {
       newHabits[fullIndex2] = temp;
       saveData(newHabits, dailyData);
     }
-  };
-
-  const handleDragStart = (index: number) => {
-    if (!isEditMode) return;
-    setDraggedIndex(index);
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedIndex === null || draggedIndex === index) return;
-    
-    const updatedHabits = [...habits];
-    const draggedItem = updatedHabits[draggedIndex];
-    updatedHabits.splice(draggedIndex, 1);
-    updatedHabits.splice(index, 0, draggedItem);
-    setDraggedIndex(index);
-    saveData(updatedHabits, dailyData);
   };
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
@@ -639,7 +622,7 @@ export default function Home() {
   return (
     <div className="max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 dir-rtl text-right select-none" dir="rtl">
       
-      {/* 1. الترويسة الرئيسية + زر تعديل الاسم الشخصي */}
+      {/* 1. الترويسة الرئيسية + تعديل الاسم */}
       <div className="flex justify-between items-center mb-6 pt-2">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 border border-blue-400/40 flex items-center justify-center font-bold text-xl shadow-lg shadow-blue-500/20">
@@ -675,7 +658,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* نافذة صغيرة لتعديل اسم الشخص وترسيخه */}
+      {/* نافذة تعديل الاسم الشخصي */}
       {isEditingName && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <form onSubmit={handleSaveName} className="bg-[#18202e] border border-gray-700 rounded-3xl p-6 w-full max-w-xs space-y-4 shadow-2xl">
@@ -768,12 +751,7 @@ export default function Home() {
                 const streakInfo = getHabitStreakStatus(habit);
 
                 return (
-                  <div 
-                    key={habit.id} 
-                    draggable={isEditMode}
-                    onDragStart={() => handleDragStart(index)}
-                    onDragOver={(e) => handleDragOver(e, index)}
-                  >
+                  <div key={habit.id}>
                     <HabitCard
                       habit={habit}
                       count={count}
@@ -871,13 +849,12 @@ export default function Home() {
         </div>
       )}
 
-      {/* نافذة تسجيل الدخول / إنشاء حساب المحدثة مع خيار حفظ البريد 🔐 */}
+      {/* نافذة تسجيل الدخول / إنشاء حساب 🔐 */}
       {isAuthModalOpen && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-sm space-y-4 text-white shadow-2xl relative">
             <button onClick={() => setIsAuthModalOpen(false)} className="absolute top-4 left-4 text-gray-400 text-lg font-bold">✕</button>
             
-            {/* أزرار التبديل الشفافة الواضحة بين الدخول وإنشاء حساب */}
             <div className="grid grid-cols-2 gap-2 bg-[#0d131d] p-1.5 rounded-2xl border border-gray-800 text-center text-xs font-bold mt-2">
               <button
                 onClick={() => setAuthTab('signin')}
