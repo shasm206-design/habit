@@ -47,10 +47,11 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [activeMainTab, setActiveMainTab] = useState<'habits' | 'todo'>('habits');
   const [isEditMode, setIsEditMode] = useState(false);
-  const [touchStartIndex, setTouchStartIndex] = useState<number | null>(null);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // Modals & Timers
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [activeHabitCounter, setActiveHabitCounter] = useState<Habit | null>(null);
@@ -286,7 +287,7 @@ export default function Home() {
     }
   };
 
-  // إعادة الترتيب المباشر بواسطة الأزرار المباشرة للأعلى وللأسفل
+  // إعادة الترتيب بالأسهم
   const moveHabit = (index: number, direction: 'up' | 'down') => {
     const currentVisible = visibleHabits;
     const targetVisibleIndex = direction === 'up' ? index - 1 : index + 1;
@@ -305,6 +306,37 @@ export default function Home() {
       newHabits[fullIndex2] = temp;
       saveData(newHabits, dailyData);
     }
+  };
+
+  // إعادة تشغيل أحداث السحب والإفلات للـ PC بالكامل
+  const handleDragStart = (index: number) => {
+    if (!isEditMode) return;
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!isEditMode) return;
+    e.preventDefault();
+  };
+
+  const handleDrop = (targetIndex: number) => {
+    if (!isEditMode || draggedIndex === null || draggedIndex === targetIndex) return;
+
+    const currentVisible = visibleHabits;
+    const itemToMove = currentVisible[draggedIndex];
+    const itemToSwap = currentVisible[targetIndex];
+
+    const fullIndex1 = habits.findIndex((h) => h.id === itemToMove.id);
+    const fullIndex2 = habits.findIndex((h) => h.id === itemToSwap.id);
+
+    if (fullIndex1 !== -1 && fullIndex2 !== -1) {
+      const newHabits = [...habits];
+      const temp = newHabits[fullIndex1];
+      newHabits[fullIndex1] = newHabits[fullIndex2];
+      newHabits[fullIndex2] = temp;
+      saveData(newHabits, dailyData);
+    }
+    setDraggedIndex(null);
   };
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
@@ -579,7 +611,7 @@ export default function Home() {
       return { 
         trophy: '🥇', 
         label: 'ممتاز', 
-        desc: 'إنجاز رفيع ومستوى متقدم جداً',
+        desc: 'إنجاز رفيع ومستوى متتقدم جداً',
         bgGradient: 'from-yellow-500 to-amber-500',
         textColor: 'text-black'
       };
@@ -622,12 +654,16 @@ export default function Home() {
   return (
     <div className="max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 dir-rtl text-right select-none" dir="rtl">
       
-      {/* 1. الترويسة الرئيسية + تعديل الاسم */}
+      {/* 1. الترويسة الرئيسية + زر فتح الملاحة الشخصية تفاصيل الحساب */}
       <div className="flex justify-between items-center mb-6 pt-2">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 border border-blue-400/40 flex items-center justify-center font-bold text-xl shadow-lg shadow-blue-500/20">
+          <button 
+            onClick={() => setIsProfileModalOpen(true)}
+            className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 border border-blue-400/40 flex items-center justify-center font-bold text-xl shadow-lg shadow-blue-500/20 hover:scale-105 active:scale-95 transition cursor-pointer"
+            title="عرض تفاصيل الحساب"
+          >
             👤
-          </div>
+          </button>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl md:text-2xl font-extrabold bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
@@ -657,6 +693,66 @@ export default function Home() {
           </button>
         )}
       </div>
+
+      {/* نافذة تفاصيل الحساب والمعلومات المحددة بالصورة الشخصية 👤 */}
+      {isProfileModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-sm space-y-5 text-white shadow-2xl relative text-center">
+            <button 
+              onClick={() => setIsProfileModalOpen(false)} 
+              className="absolute top-4 left-4 text-gray-400 hover:text-white text-lg font-bold"
+            >
+              ✕
+            </button>
+
+            <div className="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-500 border-2 border-blue-400/50 flex items-center justify-center text-4xl shadow-xl shadow-blue-500/30 mt-2">
+              👤
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-2xl font-black">{displayName}</h3>
+              <p className="text-xs text-blue-400 font-bold">
+                {user ? 'حساب مسجل ومُتزامن سحابياً ✅' : 'حساب زائر محلي (غير مسجل) 📱'}
+              </p>
+            </div>
+
+            <div className="bg-[#0d131d] border border-gray-800 rounded-2xl p-4 text-right space-y-3 text-xs">
+              <div>
+                <span className="text-gray-400 block mb-0.5">البريد الإلكتروني:</span>
+                <span className="font-bold text-white text-sm dir-ltr text-right block">
+                  {user?.email || (email ? email : 'غير مسجل حالياً')}
+                </span>
+              </div>
+              <div className="border-t border-gray-800 pt-2">
+                <span className="text-gray-400 block mb-0.5">تاريخ انضمام الجلسة:</span>
+                <span className="font-bold text-gray-300">{selectedDate}</span>
+              </div>
+            </div>
+
+            {user ? (
+              <button
+                onClick={() => {
+                  signOut(auth);
+                  setIsProfileModalOpen(false);
+                }}
+                className="w-full py-3 bg-red-600/20 hover:bg-red-600/30 text-red-400 font-bold text-xs rounded-xl border border-red-500/40 transition"
+              >
+                تسجيل الخروج من الحساب 🚪
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setIsProfileModalOpen(false);
+                  setIsAuthModalOpen(true);
+                }}
+                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 font-bold text-xs rounded-xl shadow-lg shadow-blue-600/30 transition"
+              >
+                تسجيل الدخول / إنشاء حساب 🔐
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* نافذة تعديل الاسم الشخصي */}
       {isEditingName && (
@@ -751,7 +847,14 @@ export default function Home() {
                 const streakInfo = getHabitStreakStatus(habit);
 
                 return (
-                  <div key={habit.id}>
+                  <div 
+                    key={habit.id}
+                    draggable={isEditMode}
+                    onDragStart={() => handleDragStart(index)}
+                    onDragOver={handleDragOver}
+                    onDrop={() => handleDrop(index)}
+                    className={isEditMode ? 'cursor-grab active:cursor-grabbing' : ''}
+                  >
                     <HabitCard
                       habit={habit}
                       count={count}
