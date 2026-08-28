@@ -37,6 +37,10 @@ const DAYS_LOOKUP = [
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
+  const [displayName, setDisplayName] = useState<string>('هاشم');
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempNameInput, setTempNameInput] = useState('');
+
   const [habits, setHabits] = useState<Habit[]>([]);
   const [dailyData, setDailyData] = useState<{ [date: string]: DayProgress }>({});
   const [tasks, setTasks] = useState<{ [date: string]: TaskItem[] }>({});
@@ -58,11 +62,14 @@ export default function Home() {
   const [isTimerFinished, setIsTimerFinished] = useState(false);
   const [isOvertime, setIsOvertime] = useState(false);
 
-  // Form State
-  const [isSignUp, setIsSignUp] = useState(false);
+  // Auth & Form State
+  const [authTab, setAuthTab] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberEmail, setRememberEmail] = useState(true);
   const [authError, setAuthError] = useState('');
+
+  // Habit Form State
   const [title, setTitle] = useState('');
   const [habitType, setHabitType] = useState<'عداد' | 'مؤقت' | 'مهمة'>('عداد');
   const [habitCategory, setHabitCategory] = useState<'إيجابية' | 'سيئة'>('إيجابية');
@@ -86,6 +93,12 @@ export default function Home() {
     const todayStr = getLocalDateString();
     setSelectedDate(todayStr);
 
+    const savedEmail = localStorage.getItem('habit_tracker_saved_email');
+    if (savedEmail) setEmail(savedEmail);
+
+    const savedName = localStorage.getItem('habit_tracker_user_name');
+    if (savedName) setDisplayName(savedName);
+
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
@@ -95,6 +108,7 @@ export default function Home() {
             const data = docSnap.data();
             if (data.habits) setHabits(data.habits);
             if (data.dailyData) setDailyData(data.dailyData);
+            if (data.displayName) setDisplayName(data.displayName);
             if (data.tasks) {
               const processedTasks = handleCarryOverTasks(data.tasks, todayStr);
               setTasks(processedTasks);
@@ -119,7 +133,7 @@ export default function Home() {
     return () => unsubscribeAuth();
   }, []);
 
-  // إدارة المؤقت الذكي الحقيقي الحافظ للحالة والإيقاف المؤقت
+  // إدارة المؤقت الذكي
   useEffect(() => {
     if (!activeHabitCounter || activeHabitCounter.type !== 'مؤقت') return;
 
@@ -245,7 +259,8 @@ export default function Home() {
   const saveData = async (
     updatedHabits: Habit[], 
     updatedDaily: { [date: string]: DayProgress },
-    updatedTasks = tasks
+    updatedTasks = tasks,
+    nameToSave = displayName
   ) => {
     setHabits(updatedHabits);
     setDailyData(updatedDaily);
@@ -254,7 +269,12 @@ export default function Home() {
     if (user) {
       try {
         const userDocRef = doc(db, 'users', user.uid);
-        await setDoc(userDocRef, { habits: updatedHabits, dailyData: updatedDaily, tasks: updatedTasks }, { merge: true });
+        await setDoc(userDocRef, { 
+          habits: updatedHabits, 
+          dailyData: updatedDaily, 
+          tasks: updatedTasks,
+          displayName: nameToSave
+        }, { merge: true });
       } catch (err) {
         console.error('خطأ في حفظ البيانات:', err);
       }
@@ -262,17 +282,29 @@ export default function Home() {
       localStorage.setItem('habit_tracker_habits', JSON.stringify(updatedHabits));
       localStorage.setItem('habit_tracker_daily', JSON.stringify(updatedDaily));
       localStorage.setItem('habit_tracker_tasks', JSON.stringify(updatedTasks));
+      localStorage.setItem('habit_tracker_user_name', nameToSave);
     }
   };
 
+  // تعديل ودعم إعادة الترتيب بطلاقة وبدون مشاكل
   const moveHabit = (index: number, direction: 'up' | 'down') => {
-    const newHabits = [...habits];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= newHabits.length) return;
-    const temp = newHabits[index];
-    newHabits[index] = newHabits[targetIndex];
-    newHabits[targetIndex] = temp;
-    saveData(newHabits, dailyData);
+    const currentVisible = visibleHabits;
+    const targetVisibleIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetVisibleIndex < 0 || targetVisibleIndex >= currentVisible.length) return;
+
+    const itemToMove = currentVisible[index];
+    const itemToSwap = currentVisible[targetVisibleIndex];
+
+    const fullIndex1 = habits.findIndex((h) => h.id === itemToMove.id);
+    const fullIndex2 = habits.findIndex((h) => h.id === itemToSwap.id);
+
+    if (fullIndex1 !== -1 && fullIndex2 !== -1) {
+      const newHabits = [...habits];
+      const temp = newHabits[fullIndex1];
+      newHabits[fullIndex1] = newHabits[fullIndex2];
+      newHabits[fullIndex2] = temp;
+      saveData(newHabits, dailyData);
+    }
   };
 
   const handleDragStart = (index: number) => {
@@ -283,6 +315,7 @@ export default function Home() {
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
     if (draggedIndex === null || draggedIndex === index) return;
+    
     const updatedHabits = [...habits];
     const draggedItem = updatedHabits[draggedIndex];
     updatedHabits.splice(draggedIndex, 1);
@@ -295,16 +328,21 @@ export default function Home() {
     e.preventDefault();
     setAuthError('');
     try {
-      if (isSignUp) {
+      if (rememberEmail) {
+        localStorage.setItem('habit_tracker_saved_email', email);
+      } else {
+        localStorage.removeItem('habit_tracker_saved_email');
+      }
+
+      if (authTab === 'signup') {
         await createUserWithEmailAndPassword(auth, email, password);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
       setIsAuthModalOpen(false);
-      setEmail('');
       setPassword('');
     } catch (err: any) {
-      setAuthError(err.message || 'حدث خطأ في تسجيل الدخول');
+      setAuthError(err.message || 'حدث خطأ أثناء إجراء الدخول');
     }
   };
 
@@ -315,6 +353,14 @@ export default function Home() {
     } catch (err: any) {
       setAuthError(err.message || 'حدث خطأ في تسجيل الدخول عبر Google');
     }
+  };
+
+  const handleSaveName = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tempNameInput.trim()) return;
+    setDisplayName(tempNameInput);
+    saveData(habits, dailyData, tasks, tempNameInput);
+    setIsEditingName(false);
   };
 
   const getSelectedDayOfWeek = () => {
@@ -448,7 +494,6 @@ export default function Home() {
     saveData(habits, dailyData, updatedTasks);
   };
 
-  // دالة حساب الستريك الجذري المعدل مع تجميع كامل للأيام المكتملة والسماح بفجوة حماية
   const getHabitStreakStatus = (habit: Habit) => {
     let streakCount = 0;
     let currentType: 'gold' | 'bronze' | 'warrior' | 'none' = 'none';
@@ -471,16 +516,21 @@ export default function Home() {
     for (let i = 0; i < 365; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
+      const dayOfWeek = d.getDay();
+
+      if (habit.repeatDays && !habit.repeatDays.includes(dayOfWeek)) {
+        continue;
+      }
+
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       const cnt = dailyData[dateStr]?.[habit.id] || 0;
       const pct = cnt / (habit.targetCount || 1);
 
       if (pct >= 1) {
         streakCount++;
-        consecutiveGaps = 0; // تنظيف الفجوات عند وجود يوم مكتمل
+        consecutiveGaps = 0;
       } else if (i > 0) {
         consecutiveGaps++;
-        // إذا تكررت الفجوات ليومين متتاليين يتم كسر التتابع
         if (consecutiveGaps > 1) {
           break;
         }
@@ -589,16 +639,27 @@ export default function Home() {
   return (
     <div className="max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 dir-rtl text-right select-none" dir="rtl">
       
-      {/* 1. الترويسة الرئيسية */}
+      {/* 1. الترويسة الرئيسية + زر تعديل الاسم الشخصي */}
       <div className="flex justify-between items-center mb-6 pt-2">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 border border-blue-400/40 flex items-center justify-center font-bold text-xl shadow-lg shadow-blue-500/20">
             👤
           </div>
           <div>
-            <h1 className="text-xl md:text-2xl font-extrabold bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
-              مرحباً، {user?.email ? user.email.split('@')[0] : 'هاشم'}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl md:text-2xl font-extrabold bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
+                مرحباً، {displayName}
+              </h1>
+              <button 
+                onClick={() => {
+                  setTempNameInput(displayName);
+                  setIsEditingName(true);
+                }} 
+                className="text-xs text-blue-400 hover:text-blue-300 font-bold p-1 bg-blue-500/10 rounded-lg border border-blue-500/20"
+              >
+                ✏️
+              </button>
+            </div>
             <p className="text-xs text-blue-400/80 font-medium">تاريخ اليوم: {selectedDate}</p>
           </div>
         </div>
@@ -613,6 +674,31 @@ export default function Home() {
           </button>
         )}
       </div>
+
+      {/* نافذة صغيرة لتعديل اسم الشخص وترسيخه */}
+      {isEditingName && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <form onSubmit={handleSaveName} className="bg-[#18202e] border border-gray-700 rounded-3xl p-6 w-full max-w-xs space-y-4 shadow-2xl">
+            <h3 className="text-base font-bold text-center">تحديث اسم الحساب الشخصي</h3>
+            <input
+              type="text"
+              value={tempNameInput}
+              onChange={(e) => setTempNameInput(e.target.value)}
+              placeholder="أدخل اسمك المفضّل..."
+              className="w-full bg-[#0d131d] border border-gray-700 p-3 rounded-xl outline-none text-sm text-white focus:border-blue-500 text-center font-bold"
+              required
+            />
+            <div className="flex gap-2">
+              <button type="submit" className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 font-bold text-xs rounded-xl transition">
+                حفظ الاسم
+              </button>
+              <button type="button" onClick={() => setIsEditingName(false)} className="flex-1 py-2.5 bg-gray-800 text-gray-300 font-bold text-xs rounded-xl transition">
+                إلغاء
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* 2. شريط النسبة المئوية للتقييم والكأس */}
       <div className={`bg-gradient-to-r ${status.bgGradient} ${status.textColor} p-4.5 rounded-3xl flex justify-between items-center px-6 shadow-xl mb-6 border border-white/20 transition-all duration-300`}>
@@ -667,7 +753,7 @@ export default function Home() {
                 isEditMode ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-[#18202e] text-gray-300 hover:bg-gray-700 border border-gray-700/80'
               }`}
             >
-              {isEditMode ? 'تم الحفظ ✔️' : 'تعديل ✏️'}
+              {isEditMode ? 'تم الحفظ ✔️' : 'تعديل والترتيب ✏️'}
             </button>
           </div>
 
@@ -785,12 +871,31 @@ export default function Home() {
         </div>
       )}
 
-      {/* نافذة تسجيل الدخول (Auth Modal) */}
+      {/* نافذة تسجيل الدخول / إنشاء حساب المحدثة مع خيار حفظ البريد 🔐 */}
       {isAuthModalOpen && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-sm space-y-4 text-white shadow-2xl relative">
             <button onClick={() => setIsAuthModalOpen(false)} className="absolute top-4 left-4 text-gray-400 text-lg font-bold">✕</button>
-            <h3 className="text-xl font-extrabold text-center">{isSignUp ? 'إنشاء حساب جديد' : 'تسجيل الدخول'}</h3>
+            
+            {/* أزرار التبديل الشفافة الواضحة بين الدخول وإنشاء حساب */}
+            <div className="grid grid-cols-2 gap-2 bg-[#0d131d] p-1.5 rounded-2xl border border-gray-800 text-center text-xs font-bold mt-2">
+              <button
+                onClick={() => setAuthTab('signin')}
+                className={`py-2 rounded-xl transition ${
+                  authTab === 'signin' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                تسجيل الدخول
+              </button>
+              <button
+                onClick={() => setAuthTab('signup')}
+                className={`py-2 rounded-xl transition ${
+                  authTab === 'signup' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                إنشاء حساب جديد
+              </button>
+            </div>
             
             {authError && <div className="p-2.5 bg-red-500/20 border border-red-500/40 text-red-300 text-xs rounded-xl text-center font-bold">{authError}</div>}
 
@@ -816,8 +921,21 @@ export default function Home() {
                 />
               </div>
 
-              <button type="submit" className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 font-bold text-sm rounded-xl shadow-lg active:scale-95 transition">
-                {isSignUp ? 'إنشاء الحساب' : 'الدخول'}
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="rememberEmail"
+                  checked={rememberEmail}
+                  onChange={(e) => setRememberEmail(e.target.checked)}
+                  className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
+                />
+                <label htmlFor="rememberEmail" className="text-xs text-gray-300 cursor-pointer font-medium">
+                  حفظ البريد الإلكتروني على هذا الجهاز
+                </label>
+              </div>
+
+              <button type="submit" className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 font-bold text-sm rounded-xl shadow-lg active:scale-95 transition mt-2">
+                {authTab === 'signup' ? 'إنشاء الحساب الان' : 'تأكيد الدخول'}
               </button>
             </form>
 
@@ -827,11 +945,7 @@ export default function Home() {
             </div>
 
             <button onClick={handleGoogleAuth} className="w-full py-2.5 bg-white text-gray-900 font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md active:scale-95 transition">
-              <span>الدخول عبر Google</span>
-            </button>
-
-            <button onClick={() => setIsSignUp(!isSignUp)} className="w-full text-center text-xs text-blue-400 mt-2 block font-medium">
-              {isSignUp ? 'لديك حساب بالفعل؟ سجل دخولك' : 'ليس لديك حساب؟ أنشئ حساباً جديداً'}
+              <span>المتابعة عبر Google</span>
             </button>
           </div>
         </div>
