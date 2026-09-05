@@ -24,6 +24,13 @@ export interface TaskItem {
   completed: boolean;
 }
 
+export interface ExtendedGoal {
+  id: string;
+  title: string;
+  period: 'week' | 'month' | 'year';
+  completed: boolean;
+}
+
 const COLOR_OPTIONS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 const DAYS_LOOKUP = [
   { id: 0, label: 'أحد' },
@@ -44,8 +51,12 @@ export default function Home() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [dailyData, setDailyData] = useState<{ [date: string]: DayProgress }>({});
   const [tasks, setTasks] = useState<{ [date: string]: TaskItem[] }>({});
+  const [extendedGoals, setExtendedGoals] = useState<ExtendedGoal[]>([]);
+  
   const [selectedDate, setSelectedDate] = useState<string>('');
-  const [activeMainTab, setActiveMainTab] = useState<'habits' | 'todo'>('habits');
+  const [activeMainTab, setActiveMainTab] = useState<'habits' | 'todo' | 'goals'>('habits');
+  const [goalSubPeriod, setGoalSubPeriod] = useState<'week' | 'month' | 'year'>('week');
+  
   const [isEditMode, setIsEditMode] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
@@ -79,8 +90,9 @@ export default function Home() {
   const [selectedColor, setSelectedColor] = useState(COLOR_OPTIONS[0]);
   const [selectedDays, setSelectedDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
 
-  // To-Do Input State
+  // To-Do Input & Goal Input State
   const [newTaskInput, setNewTaskInput] = useState('');
+  const [newGoalInput, setNewGoalInput] = useState('');
 
   const getLocalDateString = () => {
     const d = new Date();
@@ -110,6 +122,7 @@ export default function Home() {
             if (data.habits) setHabits(data.habits);
             if (data.dailyData) setDailyData(data.dailyData);
             if (data.displayName) setDisplayName(data.displayName);
+            if (data.extendedGoals) setExtendedGoals(data.extendedGoals);
             if (data.tasks) {
               const processedTasks = handleCarryOverTasks(data.tasks, todayStr);
               setTasks(processedTasks);
@@ -122,6 +135,8 @@ export default function Home() {
         if (savedHabits) setHabits(JSON.parse(savedHabits));
         const savedDaily = localStorage.getItem('habit_tracker_daily');
         if (savedDaily) setDailyData(JSON.parse(savedDaily));
+        const savedGoals = localStorage.getItem('habit_tracker_goals');
+        if (savedGoals) setExtendedGoals(JSON.parse(savedGoals));
         const savedTasks = localStorage.getItem('habit_tracker_tasks');
         if (savedTasks) {
           const parsed = JSON.parse(savedTasks);
@@ -261,11 +276,13 @@ export default function Home() {
     updatedHabits: Habit[], 
     updatedDaily: { [date: string]: DayProgress },
     updatedTasks = tasks,
-    nameToSave = displayName
+    nameToSave = displayName,
+    updatedGoals = extendedGoals
   ) => {
     setHabits(updatedHabits);
     setDailyData(updatedDaily);
     setTasks(updatedTasks);
+    setExtendedGoals(updatedGoals);
 
     if (user) {
       try {
@@ -274,7 +291,8 @@ export default function Home() {
           habits: updatedHabits, 
           dailyData: updatedDaily, 
           tasks: updatedTasks,
-          displayName: nameToSave
+          displayName: nameToSave,
+          extendedGoals: updatedGoals
         }, { merge: true });
       } catch (err) {
         console.error('خطأ في حفظ البيانات:', err);
@@ -283,11 +301,11 @@ export default function Home() {
       localStorage.setItem('habit_tracker_habits', JSON.stringify(updatedHabits));
       localStorage.setItem('habit_tracker_daily', JSON.stringify(updatedDaily));
       localStorage.setItem('habit_tracker_tasks', JSON.stringify(updatedTasks));
+      localStorage.setItem('habit_tracker_goals', JSON.stringify(updatedGoals));
       localStorage.setItem('habit_tracker_user_name', nameToSave);
     }
   };
 
-  // إعادة الترتيب بالأسهم
   const moveHabit = (index: number, direction: 'up' | 'down') => {
     const currentVisible = visibleHabits;
     const targetVisibleIndex = direction === 'up' ? index - 1 : index + 1;
@@ -308,7 +326,6 @@ export default function Home() {
     }
   };
 
-  // إعادة تشغيل أحداث السحب والإفلات للـ PC بالكامل
   const handleDragStart = (index: number) => {
     if (!isEditMode) return;
     setDraggedIndex(index);
@@ -509,6 +526,31 @@ export default function Home() {
     saveData(habits, dailyData, updatedTasks);
   };
 
+  // وظائف إدارة الأهداف الممتدة
+  const addExtendedGoal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGoalInput.trim()) return;
+    const newGoal: ExtendedGoal = {
+      id: Date.now().toString(),
+      title: newGoalInput,
+      period: goalSubPeriod,
+      completed: false
+    };
+    const updated = [...extendedGoals, newGoal];
+    saveData(habits, dailyData, tasks, displayName, updated);
+    setNewGoalInput('');
+  };
+
+  const toggleExtendedGoal = (goalId: string) => {
+    const updated = extendedGoals.map((g) => g.id === goalId ? { ...g, completed: !g.completed } : g);
+    saveData(habits, dailyData, tasks, displayName, updated);
+  };
+
+  const deleteExtendedGoal = (goalId: string) => {
+    const updated = extendedGoals.filter((g) => g.id !== goalId);
+    saveData(habits, dailyData, tasks, displayName, updated);
+  };
+
   const getHabitStreakStatus = (habit: Habit) => {
     let streakCount = 0;
     let currentType: 'gold' | 'bronze' | 'warrior' | 'none' = 'none';
@@ -611,7 +653,7 @@ export default function Home() {
       return { 
         trophy: '🥇', 
         label: 'ممتاز', 
-        desc: 'إنجاز رفيع ومستوى متتقدم جداً',
+        desc: 'إنجاز رفيع ومستوى متقدم جداً',
         bgGradient: 'from-yellow-500 to-amber-500',
         textColor: 'text-black'
       };
@@ -651,10 +693,14 @@ export default function Home() {
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
+  const filteredGoals = extendedGoals.filter((g) => g.period === goalSubPeriod);
+  const completedGoalsCount = filteredGoals.filter((g) => g.completed).length;
+  const goalsPct = filteredGoals.length > 0 ? Math.round((completedGoalsCount / filteredGoals.length) * 100) : 0;
+
   return (
     <div className="max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 dir-rtl text-right select-none" dir="rtl">
       
-      {/* 1. الترويسة الرئيسية + زر فتح الملاحة الشخصية تفاصيل الحساب */}
+      {/* 1. الترويسة الرئيسية + تفاصيل الحساب */}
       <div className="flex justify-between items-center mb-6 pt-2">
         <div className="flex items-center gap-3">
           <button 
@@ -694,7 +740,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* نافذة تفاصيل الحساب والمعلومات المحددة بالصورة الشخصية 👤 */}
+      {/* نافذة تفاصيل الحساب 👤 */}
       {isProfileModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-sm space-y-5 text-white shadow-2xl relative text-center">
@@ -724,7 +770,7 @@ export default function Home() {
                 </span>
               </div>
               <div className="border-t border-gray-800 pt-2">
-                <span className="text-gray-400 block mb-0.5">تاريخ انضمام الجلسة:</span>
+                <span className="text-gray-400 block mb-0.5">تاريخ الجلسة:</span>
                 <span className="font-bold text-gray-300">{selectedDate}</span>
               </div>
             </div>
@@ -737,7 +783,7 @@ export default function Home() {
                 }}
                 className="w-full py-3 bg-red-600/20 hover:bg-red-600/30 text-red-400 font-bold text-xs rounded-xl border border-red-500/40 transition"
               >
-                تسجيل الخروج من الحساب 🚪
+                تسجيل الخروج 🚪
               </button>
             ) : (
               <button
@@ -801,8 +847,8 @@ export default function Home() {
         />
       </div>
 
-      {/* 3. تبويب العادات والمهام */}
-      <div className="grid grid-cols-2 gap-2 bg-[#161e2c] p-1.5 rounded-2xl border border-gray-700/80 mb-6 text-center text-sm font-bold">
+      {/* 3. تبويب العادات، المهام، والأهداف الممتدة الجديد 🎯 */}
+      <div className="grid grid-cols-3 gap-1.5 bg-[#161e2c] p-1.5 rounded-2xl border border-gray-700/80 mb-6 text-center text-xs md:text-sm font-bold">
         <button
           onClick={() => setActiveMainTab('habits')}
           className={`py-3 rounded-xl transition ${
@@ -817,12 +863,20 @@ export default function Home() {
             activeMainTab === 'todo' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
           }`}
         >
-          📝 قائمة المهام (To-Do)
+          📝 المهام (To-Do)
+        </button>
+        <button
+          onClick={() => setActiveMainTab('goals')}
+          className={`py-3 rounded-xl transition ${
+            activeMainTab === 'goals' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          🏆 أهدافي الممتدة
         </button>
       </div>
 
       {/* قسم العادات اليومية */}
-      {activeMainTab === 'habits' ? (
+      {activeMainTab === 'habits' && (
         <>
           <div className="flex justify-between items-center mb-4 px-2">
             <h2 className="text-2xl font-bold">عاداتي</h2>
@@ -894,8 +948,10 @@ export default function Home() {
             )}
           </div>
         </>
-      ) : (
-        /* قسم قائمة المهام */
+      )}
+
+      {/* قسم قائمة المهام */}
+      {activeMainTab === 'todo' && (
         <div className="space-y-6">
           <form onSubmit={addTask} className="flex gap-2">
             <input
@@ -941,6 +997,103 @@ export default function Home() {
                   </div>
                   <button
                     onClick={() => deleteTask(task.id)}
+                    className="text-gray-500 hover:text-red-400 p-1 text-sm font-bold transition"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* قسم أهدافي الممتدة (أسبوع، شهر، سنة) 🏆 */}
+      {activeMainTab === 'goals' && (
+        <div className="space-y-6">
+          {/* شريط اختيار الفترة الممتدة */}
+          <div className="flex justify-center gap-2 bg-[#161e2c] p-2 rounded-2xl border border-gray-800 text-xs font-bold">
+            <button
+              onClick={() => setGoalSubPeriod('week')}
+              className={`flex-1 py-2 rounded-xl transition ${
+                goalSubPeriod === 'week' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              📅 أهداف الأسبوع
+            </button>
+            <button
+              onClick={() => setGoalSubPeriod('month')}
+              className={`flex-1 py-2 rounded-xl transition ${
+                goalSubPeriod === 'month' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              🗓️ أهداف الشهر
+            </button>
+            <button
+              onClick={() => setGoalSubPeriod('year')}
+              className={`flex-1 py-2 rounded-xl transition ${
+                goalSubPeriod === 'year' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              🚀 أهداف السنة
+            </button>
+          </div>
+
+          {/* شريط التقدم للهدف */}
+          <div className="bg-[#161e2c] border border-gray-800 p-4 rounded-2xl flex justify-between items-center">
+            <div>
+              <span className="text-xs text-gray-400 block font-medium">نسبة إنجاز أهداف {goalSubPeriod === 'week' ? 'الأسبوع' : goalSubPeriod === 'month' ? 'الشهر' : 'السنة'}</span>
+              <span className="text-lg font-black text-blue-400">{completedGoalsCount} من {filteredGoals.length} أهداف مكتملة</span>
+            </div>
+            <div className="text-2xl font-black text-emerald-400">%{goalsPct}</div>
+          </div>
+
+          {/* نموذج إضافة هدف */}
+          <form onSubmit={addExtendedGoal} className="flex gap-2">
+            <input
+              type="text"
+              placeholder={`إضافة هدف ${goalSubPeriod === 'week' ? 'أسبوعي' : goalSubPeriod === 'month' ? 'شهري' : 'سنوي'} جديد...`}
+              value={newGoalInput}
+              onChange={(e) => setNewGoalInput(e.target.value)}
+              className="flex-1 bg-[#161e2c] border border-gray-700/80 p-3.5 rounded-2xl outline-none text-white text-sm focus:border-blue-500"
+            />
+            <button
+              type="submit"
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3.5 rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition"
+            >
+              إضافة ➕
+            </button>
+          </form>
+
+          {/* قائمة الأهداف */}
+          <div className="space-y-3">
+            {filteredGoals.length === 0 ? (
+              <div className="text-center py-12 text-gray-500 text-sm bg-[#131a26] rounded-3xl border border-dashed border-gray-800">
+                لا توجد أهداف مسجلة لهذه الفترة حتى الآن.
+              </div>
+            ) : (
+              filteredGoals.map((goal) => (
+                <div
+                  key={goal.id}
+                  className={`p-4 rounded-2xl flex justify-between items-center border transition ${
+                    goal.completed
+                      ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-200 line-through'
+                      : 'bg-[#161e2c] border-gray-700/80 text-white'
+                  }`}
+                >
+                  <div
+                    onClick={() => toggleExtendedGoal(goal.id)}
+                    className="flex items-center gap-3 cursor-pointer flex-1"
+                  >
+                    <div className={`w-6 h-6 rounded-lg border flex items-center justify-center font-bold text-xs ${
+                      goal.completed ? 'bg-emerald-500 border-emerald-400 text-white' : 'border-gray-600'
+                    }`}>
+                      {goal.completed && '✓'}
+                    </div>
+                    <span className="text-sm font-bold">{goal.title}</span>
+                  </div>
+                  <button
+                    onClick={() => deleteExtendedGoal(goal.id)}
                     className="text-gray-500 hover:text-red-400 p-1 text-sm font-bold transition"
                   >
                     🗑️
