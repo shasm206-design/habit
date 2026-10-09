@@ -57,8 +57,9 @@ const TRANSLATIONS = {
     task: 'مهمة',
     timer: 'مؤقت',
     counter: 'عداد',
-    minMinutes: 'الحد الأدنى (دقائق)',
-    maxMinutes: 'الحد الأقصى (دقائق)',
+    useRange: 'تفعيل النطاق الزمني / العددي المرن (أدنى وأقصى)',
+    minGoal: 'الحد الأدنى للإنهاء (%100 إنجاز)',
+    maxGoal: 'الحد الأقصى (بونص إضافي 👑)',
     targetCount: 'العدد المستهدف',
     color: 'لون العادة',
     save: 'حفظ',
@@ -73,7 +74,7 @@ const TRANSLATIONS = {
     guestAccount: 'حساب زائر محلي (غير مسجل) 📱',
     email: 'البريد الإلكتروني:',
     sessionDate: 'تاريخ الجلسة:',
-    minReached: '🎉 تم تحقيق الحد الأدنى للتركيز بنجاح! يمكن الإكمال أو الاكتفاء.',
+    minReached: '🎉 وصلت للحد الأدنى! أخذت %100 إنجاز بنجاح. يمكنك التوقف أو كسب بونص استثنائي!',
     startTimer: '▶️ بدء المؤقت',
     pauseTimer: '⏸️ إيقاف مؤقت',
     resetTimer: '↺ إعادة',
@@ -102,8 +103,9 @@ const TRANSLATIONS = {
     task: 'Task',
     timer: 'Timer',
     counter: 'Counter',
-    minMinutes: 'Min Limit (Mins)',
-    maxMinutes: 'Max Limit (Mins)',
+    useRange: 'Enable Flexible Range (Min & Max)',
+    minGoal: 'Min Goal (100% Complete)',
+    maxGoal: 'Max Goal (Bonus 👑)',
     targetCount: 'Target Count',
     color: 'Habit Color',
     save: 'Save',
@@ -118,7 +120,7 @@ const TRANSLATIONS = {
     guestAccount: 'Local Guest Account 📱',
     email: 'Email:',
     sessionDate: 'Session Date:',
-    minReached: '🎉 Minimum focus threshold reached! You can continue or finish.',
+    minReached: '🎉 Min goal reached! You earned 100% completion. Stop or push for bonus!',
     startTimer: '▶️ Start Timer',
     pauseTimer: '⏸️ Pause Timer',
     resetTimer: '↺ Reset',
@@ -154,7 +156,7 @@ export default function Home() {
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [activeHabitCounter, setActiveHabitCounter] = useState<Habit | null>(null);
 
-  // Timer Range States (Min & Max)
+  // Timer Range States
   const [timerMode, setTimerMode] = useState<'timer' | 'counter'>('counter');
   const [timerSecondsLeft, setTimerSecondsLeft] = useState<number>(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
@@ -172,8 +174,9 @@ export default function Home() {
   const [title, setTitle] = useState('');
   const [habitType, setHabitType] = useState<'عداد' | 'مؤقت' | 'مهمة'>('عداد');
   const [habitCategory, setHabitCategory] = useState<'إيجابية' | 'سيئة'>('إيجابية');
-  const [minMinutes, setMinMinutes] = useState<number>(10);
-  const [maxMinutes, setMaxMinutes] = useState<number>(30);
+  const [useRange, setUseRange] = useState<boolean>(false);
+  const [minValInput, setMinValInput] = useState<number>(10);
+  const [maxValInput, setMaxValInput] = useState<number>(30);
   const [targetCount, setTargetCount] = useState<number>(10);
   const [unit, setUnit] = useState('صفحة');
   const [selectedColor, setSelectedColor] = useState(COLOR_OPTIONS[0]);
@@ -246,7 +249,7 @@ export default function Home() {
     localStorage.setItem('habit_tracker_lang', newLang);
   };
 
-  // إدارة المؤقت بالنطاق الزمني
+  // إدارة المؤقت المرن
   useEffect(() => {
     if (!activeHabitCounter || activeHabitCounter.type !== 'مؤقت') return;
 
@@ -526,9 +529,9 @@ export default function Home() {
       updateHabitCount(habit.id, current > 0 ? 0 : 1);
     } else {
       const currentCount = getHabitCount(habit.id);
-      const target = habit.maxMinutes || habit.targetCount;
-      const isCompleted = currentCount >= target;
-      updateHabitCount(habit.id, isCompleted ? 0 : target);
+      const minThresh = habit.minMinutes || habit.targetCount;
+      const isCompleted = currentCount >= minThresh;
+      updateHabitCount(habit.id, isCompleted ? 0 : minThresh);
     }
   };
 
@@ -545,7 +548,7 @@ export default function Home() {
     e.preventDefault();
     if (!title.trim()) return;
 
-    const finalTarget = habitType === 'مهمة' ? 1 : habitType === 'مؤقت' ? maxMinutes : Number(targetCount) || 1;
+    const finalTarget = habitType === 'مهمة' ? 1 : useRange ? maxValInput : Number(targetCount) || 1;
     const finalUnit = habitType === 'مؤقت' ? 'دقيقة' : habitType === 'مهمة' ? 'مرة' : unit;
 
     let updatedHabits: Habit[];
@@ -557,8 +560,8 @@ export default function Home() {
               title, 
               type: habitType,
               targetCount: finalTarget, 
-              minMinutes: habitType === 'مؤقت' ? minMinutes : undefined,
-              maxMinutes: habitType === 'مؤقت' ? maxMinutes : undefined,
+              minMinutes: useRange ? minValInput : undefined,
+              maxMinutes: useRange ? maxValInput : undefined,
               unit: finalUnit, 
               color: selectedColor,
               repeatDays: selectedDays,
@@ -572,8 +575,8 @@ export default function Home() {
         title,
         type: habitType,
         targetCount: finalTarget,
-        minMinutes: habitType === 'مؤقت' ? minMinutes : undefined,
-        maxMinutes: habitType === 'مؤقت' ? maxMinutes : undefined,
+        minMinutes: useRange ? minValInput : undefined,
+        maxMinutes: useRange ? maxValInput : undefined,
         unit: finalUnit,
         color: selectedColor,
         repeatDays: selectedDays,
@@ -657,63 +660,19 @@ export default function Home() {
     saveData(habits, dailyData, tasks, displayName, updated);
   };
 
-  const getHabitStreakStatus = (habit: Habit) => {
-    let streakCount = 0;
-    let currentType: 'gold' | 'bronze' | 'warrior' | 'none' = 'none';
-
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  // احتساب الإكمال العادل (%100 للأدنى + بونص للأقصى)
+  const calculateHabitScore = (habit: Habit, count: number) => {
+    if (habit.category === 'سيئة') return count === 0 ? 1 : 0;
     
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+    const minThresh = habit.minMinutes || habit.targetCount || 1;
+    const maxThresh = habit.maxMinutes || habit.targetCount || minThresh;
 
-    const countToday = dailyData[todayStr]?.[habit.id] || 0;
-    const countYesterday = dailyData[yesterdayStr]?.[habit.id] || 0;
-
-    const targetVal = habit.maxMinutes || habit.targetCount || 1;
-    const pctToday = countToday / targetVal;
-
-    for (let i = 0; i < 365; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dayOfWeek = d.getDay();
-
-      if (habit.repeatDays && !habit.repeatDays.includes(dayOfWeek)) {
-        continue;
-      }
-
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      const cnt = dailyData[dateStr]?.[habit.id] || 0;
-      const minThresh = habit.minMinutes || targetVal;
-      const pct = cnt / minThresh;
-
-      if (pct >= 1) {
-        streakCount++;
-      } else if (i > 0) {
-        break;
-      }
-    }
-
-    if (habit.category === 'سيئة') {
-      if (countToday === 0) {
-        currentType = 'gold';
-      } else {
-        currentType = 'warrior';
-      }
+    if (count < minThresh) {
+      return count / minThresh;
     } else {
-      if (pctToday >= 1) {
-        currentType = 'gold';
-      } else {
-        if (countYesterday < (habit.minMinutes || targetVal) && dailyData[yesterdayStr] !== undefined) {
-          currentType = 'warrior';
-        } else {
-          currentType = 'bronze';
-        }
-      }
+      const bonusPct = maxThresh > minThresh ? ((count - minThresh) / (maxThresh - minThresh)) * 0.2 : 0;
+      return 1.0 + bonusPct; 
     }
-
-    return { type: currentType, count: streakCount };
   };
 
   const calculateTotalDayPercentage = () => {
@@ -726,12 +685,7 @@ export default function Home() {
     let habitsCompletedScore = 0;
     visibleHabits.forEach((h) => {
       const cnt = getHabitCount(h.id);
-      const target = h.maxMinutes || h.targetCount || 1;
-      if (h.category === 'سيئة') {
-        habitsCompletedScore += cnt === 0 ? 1 : 0;
-      } else {
-        habitsCompletedScore += Math.min(1, cnt / target);
-      }
+      habitsCompletedScore += calculateHabitScore(h, cnt);
     });
 
     const tasksCompletedScore = currentDayTasks.filter((t) => t.completed).length;
@@ -742,10 +696,10 @@ export default function Home() {
   const totalPercentage = calculateTotalDayPercentage();
 
   const getTrophyStatus = (pct: number) => {
-    if (pct >= 95) {
+    if (pct >= 100) {
       return { 
         trophy: '👑', 
-        label: lang === 'ar' ? 'يا استثنائي' : 'Exceptional', 
+        label: lang === 'ar' ? 'يا استثنائي (بونص)' : 'Exceptional (Bonus)', 
         desc: lang === 'ar' ? 'أداء مبهر يفوق التوقعات!' : 'Outstanding performance!',
         bgGradient: 'from-amber-400 via-yellow-500 to-amber-600',
         textColor: 'text-black'
@@ -760,21 +714,12 @@ export default function Home() {
         textColor: 'text-black'
       };
     }
-    if (pct >= 60) {
-      return { 
-        trophy: '🥈', 
-        label: lang === 'ar' ? 'جيد' : 'Good', 
-        desc: lang === 'ar' ? 'استمرار رائع وتقدم ملحوظ' : 'Consistent effort',
-        bgGradient: 'from-slate-300 via-gray-400 to-slate-500',
-        textColor: 'text-black'
-      };
-    }
     return { 
-      trophy: '🥉', 
-      label: lang === 'ar' ? 'مقبول' : 'Fair', 
-      desc: lang === 'ar' ? 'بداية خطوة متينة، واصل!' : 'Solid step forward!',
-      bgGradient: 'from-amber-700 via-amber-800 to-amber-900',
-      textColor: 'text-white'
+      trophy: '🥈', 
+      label: lang === 'ar' ? 'جيد' : 'Good', 
+      desc: lang === 'ar' ? 'استمرار رائع وتقدم ملحوظ' : 'Consistent effort',
+      bgGradient: 'from-slate-300 via-gray-400 to-slate-500',
+      textColor: 'text-black'
     };
   };
 
@@ -791,12 +736,13 @@ export default function Home() {
   const goalsPct = filteredGoals.length > 0 ? Math.round((completedGoalsCount / filteredGoals.length) * 100) : 0;
 
   const currentTimerDone = activeHabitCounter ? getHabitCount(activeHabitCounter.id) : 0;
-  const isMinReached = activeHabitCounter?.minMinutes ? currentTimerDone >= activeHabitCounter.minMinutes : false;
+  const minValThresh = activeHabitCounter?.minMinutes || activeHabitCounter?.targetCount || 1;
+  const isMinReached = currentTimerDone >= minValThresh;
 
   return (
     <div className={`max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 select-none ${lang === 'ar' ? 'dir-rtl text-right' : 'dir-ltr text-left'}`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       
-      {/* 1. الترويسة الرئيسية + تغيير اللغة + تفاصيل الحساب */}
+      {/* 1. الترويسة الرئيسية */}
       <div className="flex justify-between items-center mb-6 pt-2">
         <div className="flex items-center gap-3">
           <button 
@@ -825,7 +771,6 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* زر تبديل اللغة */}
           <button
             onClick={toggleLanguage}
             className="text-xs bg-[#161e2c] border border-gray-700 hover:border-blue-500 text-gray-200 px-3 py-2 rounded-xl font-black transition shadow-md"
@@ -844,86 +789,6 @@ export default function Home() {
           )}
         </div>
       </div>
-
-      {/* نافذة تفاصيل الحساب 👤 */}
-      {isProfileModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-sm space-y-5 text-white shadow-2xl relative text-center">
-            <button 
-              onClick={() => setIsProfileModalOpen(false)} 
-              className="absolute top-4 left-4 text-gray-400 hover:text-white text-lg font-bold"
-            >
-              ✕
-            </button>
-
-            <div className="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-500 border-2 border-blue-400/50 flex items-center justify-center text-4xl shadow-xl shadow-blue-500/30 mt-2">
-              👤
-            </div>
-
-            <div className="space-y-1">
-              <h3 className="text-2xl font-black">{displayName}</h3>
-              <p className="text-xs text-blue-400 font-bold">
-                {user ? t.loggedInSync : t.guestAccount}
-              </p>
-            </div>
-
-            <div className="bg-[#0d131d] border border-gray-800 rounded-2xl p-4 text-start space-y-3 text-xs">
-              <div>
-                <span className="text-gray-400 block mb-0.5">{t.email}</span>
-                <span className="font-bold text-white text-sm dir-ltr block">
-                  {user?.email || (email ? email : 'N/A')}
-                </span>
-              </div>
-              <div className="border-t border-gray-800 pt-2">
-                <span className="text-gray-400 block mb-0.5">{t.sessionDate}</span>
-                <span className="font-bold text-gray-300">{selectedDate}</span>
-              </div>
-            </div>
-
-            {user ? (
-              <button
-                onClick={() => {
-                  signOut(auth);
-                  setIsProfileModalOpen(false);
-                }}
-                className="w-full py-3 bg-red-600/20 hover:bg-red-600/30 text-red-400 font-bold text-xs rounded-xl border border-red-500/40 transition"
-              >
-                {t.signOut} 🚪
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  setIsProfileModalOpen(false);
-                  setIsAuthModalOpen(true);
-                }}
-                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 font-bold text-xs rounded-xl shadow-lg shadow-blue-600/30 transition"
-              >
-                {t.signIn}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* نافذة تعديل الاسم الشخصي */}
-      {isEditingName && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <form onSubmit={handleSaveName} className="bg-[#18202e] border border-gray-700 rounded-3xl p-6 w-full max-w-xs space-y-4 shadow-2xl">
-            <h3 className="text-base font-bold text-center">تحديث الاسم الشخصي</h3>
-            <input
-              type="text"
-              value={tempNameInput}
-              onChange={(e) => setTempNameInput(e.target.value)}
-              className="w-full bg-[#0d131d] border border-gray-700 p-3 rounded-xl outline-none text-sm text-white text-center font-bold"
-              required
-            />
-            <div className="flex gap-2">
-              <button type="submit" className="flex-1 py-2.5 bg-blue-600 font-bold text-xs rounded-xl transition">{t.save}</button>
-              <button type="button" onClick={() => setIsEditingName(false)} className="flex-1 py-2.5 bg-gray-800 font-bold text-xs rounded-xl transition">{t.cancel}</button>
-            </div>
-          </form>
-        </div>
-      )}
 
       {/* 2. شريط النسبة المئوية */}
       <div className={`bg-gradient-to-r ${status.bgGradient} ${status.textColor} p-4.5 rounded-3xl flex justify-between items-center px-6 shadow-xl mb-6 border border-white/20 transition-all duration-300`}>
@@ -998,7 +863,6 @@ export default function Home() {
             ) : (
               visibleHabits.map((habit, index) => {
                 const count = getHabitCount(habit.id);
-                const streakInfo = getHabitStreakStatus(habit);
 
                 return (
                   <div 
@@ -1013,24 +877,17 @@ export default function Home() {
                       habit={habit}
                       count={count}
                       isEditMode={isEditMode}
-                      streakStatus={streakInfo}
-                      onCounterClick={() => {
-                        if (habit.category === 'سيئة') {
-                          updateHabitCount(habit.id, count > 0 ? 0 : 1);
-                        } else if (habit.type === 'مهمة' || habit.targetCount === 1) {
-                          updateHabitCount(habit.id, count >= 1 ? 0 : 1);
-                        } else {
-                          openCounterModal(habit);
-                        }
-                      }}
+                      streakStatus={{ type: 'gold', count: 1 }}
+                      onCounterClick={() => openCounterModal(habit)}
                       onQuickToggle={(e) => toggleQuickComplete(e, habit)}
                       onEdit={() => {
                         setEditingHabit(habit);
                         setTitle(habit.title);
                         setHabitType(habit.type || 'عداد');
                         setHabitCategory(habit.category || 'إيجابية');
-                        setMinMinutes(habit.minMinutes || 10);
-                        setMaxMinutes(habit.maxMinutes || 30);
+                        setUseRange(!!(habit.minMinutes && habit.maxMinutes));
+                        setMinValInput(habit.minMinutes || 10);
+                        setMaxValInput(habit.maxMinutes || 30);
                         setTargetCount(habit.targetCount || 10);
                         setUnit(habit.unit);
                         setSelectedColor(habit.color);
@@ -1191,7 +1048,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* نافذة العداد التفاعلي بالنطاق الزمني للمؤقت */}
+      {/* نافذة العداد والتركيز التفاعلي */}
       {activeHabitCounter && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-[#121824] border border-gray-800 rounded-3xl p-6 w-full max-w-sm space-y-6 text-white text-center shadow-2xl relative">
@@ -1208,111 +1065,53 @@ export default function Home() {
             <div className="bg-[#1c2536] p-4 rounded-2xl border border-gray-700/60 space-y-1 mt-4">
               <h3 className="text-2xl font-black">{activeHabitCounter.title}</h3>
               <p className="text-xs text-gray-400 font-bold">
-                {activeHabitCounter.type === 'مؤقت' && activeHabitCounter.minMinutes && activeHabitCounter.maxMinutes ? (
-                  <span>النطاق المختار: <span className="text-blue-400 font-mono">{activeHabitCounter.minMinutes} - {activeHabitCounter.maxMinutes} دقيقة</span></span>
+                {activeHabitCounter.minMinutes && activeHabitCounter.maxMinutes ? (
+                  <span>النطاق المرن: <span className="text-blue-400 font-mono">{activeHabitCounter.minMinutes} أدنى (100%) - {activeHabitCounter.maxMinutes} أقصى (بونص)</span></span>
                 ) : (
                   <span>الإنجاز: <span className="text-blue-400">{getHabitCount(activeHabitCounter.id)}</span> من {activeHabitCounter.targetCount} {activeHabitCounter.unit}</span>
                 )}
               </p>
             </div>
 
-            {activeHabitCounter.type === 'مؤقت' && (
-              <div className="flex justify-between items-center bg-[#0a0f18] p-2.5 rounded-2xl border border-gray-800">
-                <span className="text-xs font-bold text-gray-300">
-                  {timerMode === 'timer' ? '⏱️ مؤقت النطاق الحي' : '📊 عداد يدوي'}
-                </span>
+            {/* العداد/المؤقت الداخلي */}
+            <div className="py-2 space-y-4">
+              <div className="flex justify-center items-center gap-5 my-2">
                 <button
-                  onClick={() => togglePreferredMode(timerMode === 'timer' ? 'counter' : 'timer')}
-                  className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 flex items-center ${
-                    timerMode === 'timer' ? 'bg-blue-600 justify-end' : 'bg-gray-700 justify-start'
-                  }`}
+                  onClick={() => {
+                    const current = getHabitCount(activeHabitCounter.id);
+                    updateHabitCount(activeHabitCounter.id, current + 1);
+                  }}
+                  className="w-16 h-16 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-3xl shadow-lg active:scale-90 transition flex items-center justify-center"
                 >
-                  <div className="w-4 h-4 rounded-full bg-white shadow-md transform transition-transform" />
+                  +
+                </button>
+                <div className={`w-36 h-36 rounded-full border-4 flex flex-col items-center justify-center shadow-2xl transition-all duration-500 ${
+                  isMinReached ? 'bg-emerald-600/20 border-emerald-500 text-emerald-300' : 'bg-blue-600/20 border-blue-500 text-blue-400'
+                }`}>
+                  <span className="text-5xl font-black">
+                    {getHabitCount(activeHabitCounter.id)}
+                  </span>
+                  <span className="text-[10px] font-bold mt-1 text-gray-300">
+                    {isMinReached ? 'مكتمل %100 ✔️' : `الهدف: ${minValThresh}`}
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    const current = getHabitCount(activeHabitCounter.id);
+                    updateHabitCount(activeHabitCounter.id, Math.max(0, current - 1));
+                  }}
+                  className="w-16 h-16 rounded-full bg-red-700 hover:bg-red-600 text-white font-black text-3xl shadow-lg active:scale-90 transition flex items-center justify-center"
+                >
+                  -
                 </button>
               </div>
-            )}
 
-            {(activeHabitCounter.type !== 'مؤقت' || timerMode === 'counter') ? (
-              <div className="py-2">
-                <div className="flex justify-center items-center gap-5 my-4">
-                  <button
-                    onClick={() => {
-                      const current = getHabitCount(activeHabitCounter.id);
-                      updateHabitCount(activeHabitCounter.id, current + 1);
-                    }}
-                    className="w-16 h-16 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-3xl shadow-lg active:scale-90 transition flex items-center justify-center"
-                  >
-                    +
-                  </button>
-                  <button
-                    onClick={() => {
-                      const current = getHabitCount(activeHabitCounter.id);
-                      updateHabitCount(activeHabitCounter.id, current + 1);
-                    }}
-                    className="w-36 h-36 rounded-full bg-gradient-to-b from-blue-500 to-blue-600 border-4 border-blue-400/50 flex flex-col items-center justify-center shadow-2xl active:scale-95 transition-transform"
-                  >
-                    <span className="text-5xl font-black text-white">
-                      {getHabitCount(activeHabitCounter.id)}
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      const current = getHabitCount(activeHabitCounter.id);
-                      updateHabitCount(activeHabitCounter.id, Math.max(0, current - 1));
-                    }}
-                    className="w-16 h-16 rounded-full bg-red-700 hover:bg-red-600 text-white font-black text-3xl shadow-lg active:scale-90 transition flex items-center justify-center"
-                  >
-                    -
-                  </button>
+              {isMinReached && (
+                <div className="p-3 bg-emerald-500/20 text-emerald-300 rounded-2xl text-xs font-bold border border-emerald-500/40">
+                  {t.minReached}
                 </div>
-              </div>
-            ) : (
-              /* واجهة النطاق الممتد للمؤقت التنازلي */
-              <div className="space-y-5 py-2">
-                <div className={`w-40 h-40 rounded-full border-4 mx-auto flex flex-col items-center justify-center shadow-inner relative transition-colors duration-500 ${
-                  isMinReached 
-                    ? 'border-emerald-500/80 bg-emerald-600/20 text-emerald-300' 
-                    : 'border-blue-500/40 bg-blue-600/10 text-blue-400'
-                }`}>
-                  <span className="text-3xl font-black font-mono tracking-wider">
-                    {formatTimerString(timerSecondsLeft)}
-                  </span>
-                  <span className="text-[10px] text-gray-400 mt-1 font-bold">
-                    {isOvertime ? t.overtime : `الهدف الأقصى: ${activeHabitCounter.maxMinutes || activeHabitCounter.targetCount} دقيقة`}
-                  </span>
-                </div>
-
-                {isMinReached && (
-                  <div className="p-2.5 bg-emerald-500/20 text-emerald-300 rounded-xl text-xs font-bold border border-emerald-500/30">
-                    {t.minReached}
-                  </div>
-                )}
-
-                <div className="flex gap-2 justify-center">
-                  {!isTimerRunning ? (
-                    <button
-                      onClick={startTimer}
-                      className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-2xl shadow-lg active:scale-95 transition"
-                    >
-                      {t.startTimer}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={pauseTimer}
-                      className="flex-1 py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold text-sm rounded-2xl shadow-lg active:scale-95 transition"
-                    >
-                      {t.pauseTimer}
-                    </button>
-                  )}
-                  <button
-                    onClick={resetTimer}
-                    className="px-4 py-3 bg-gray-800 text-gray-300 hover:text-white rounded-2xl font-bold text-xs border border-gray-700 active:scale-95 transition"
-                  >
-                    {t.resetTimer}
-                  </button>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -1325,8 +1124,9 @@ export default function Home() {
             setTitle('');
             setHabitType('عداد');
             setHabitCategory('إيجابية');
-            setMinMinutes(10);
-            setMaxMinutes(30);
+            setUseRange(false);
+            setMinValInput(10);
+            setMaxValInput(30);
             setTargetCount(10);
             setUnit('صفحة');
             setSelectedDays([0, 1, 2, 3, 4, 5, 6]);
@@ -1338,7 +1138,7 @@ export default function Home() {
         </button>
       )}
 
-      {/* نافذة إضافة أو تعديل عادة مع إدخال أدنى وأقصى وقت للمؤقت */}
+      {/* نافذة إضافة أو تعديل عادة مع تفعيل النطاق المرن (أدنى وأقصى) */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl my-8">
@@ -1402,51 +1202,63 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* تحديد النطاق الزمني أدنى وأقصى للمؤقت */}
-              {habitType === 'مؤقت' && (
+              {/* تفعيل النطاق المرن (أدنى وأقصى) */}
+              {habitType !== 'مهمة' && (
                 <div className="space-y-3 bg-[#0d131d] p-4 rounded-2xl border border-gray-700">
-                  <span className="text-xs font-bold text-blue-400 block mb-1">⏱️ النطاق الزمني المرن للتركيز:</span>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] text-gray-400 block mb-1">{t.minMinutes}</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="useRangeCheck"
+                      checked={useRange}
+                      onChange={(e) => setUseRange(e.target.checked)}
+                      className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
+                    />
+                    <label htmlFor="useRangeCheck" className="text-xs font-bold text-blue-400 cursor-pointer">
+                      {t.useRange}
+                    </label>
+                  </div>
+
+                  {useRange ? (
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                      <div>
+                        <label className="text-[11px] text-gray-400 block mb-1">{t.minGoal}</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={minValInput}
+                          onChange={(e) => setMinValInput(Number(e.target.value))}
+                          className="w-full bg-[#161e2c] border border-gray-700 p-2.5 rounded-xl text-center text-white font-bold text-sm outline-none focus:border-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-gray-400 block mb-1">{t.maxGoal}</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="200"
+                          value={maxValInput}
+                          onChange={(e) => setMaxValInput(Number(e.target.value))}
+                          className="w-full bg-[#161e2c] border border-gray-700 p-2.5 rounded-xl text-center text-white font-bold text-sm outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 pt-1">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-gray-400">{t.targetCount}</span>
+                        <span className="font-bold text-blue-400 text-sm">{targetCount}</span>
+                      </div>
                       <input
-                        type="number"
+                        type="range"
                         min="1"
                         max="120"
-                        value={minMinutes}
-                        onChange={(e) => setMinMinutes(Number(e.target.value))}
-                        className="w-full bg-[#161e2c] border border-gray-700 p-2.5 rounded-xl text-center text-white font-bold text-sm outline-none focus:border-blue-500"
+                        value={targetCount}
+                        onChange={(e) => setTargetCount(Number(e.target.value))}
+                        className="w-full accent-blue-500 cursor-pointer"
                       />
                     </div>
-                    <div>
-                      <label className="text-[11px] text-gray-400 block mb-1">{t.maxMinutes}</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="180"
-                        value={maxMinutes}
-                        onChange={(e) => setMaxMinutes(Number(e.target.value))}
-                        className="w-full bg-[#161e2c] border border-gray-700 p-2.5 rounded-xl text-center text-white font-bold text-sm outline-none focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {habitType === 'عداد' && habitCategory !== 'سيئة' && (
-                <div className="space-y-2 bg-[#0d131d] p-4 rounded-2xl border border-gray-700">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-gray-400">{t.targetCount}</span>
-                    <span className="font-bold text-blue-400 text-sm">{targetCount}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="1"
-                    max="120"
-                    value={targetCount}
-                    onChange={(e) => setTargetCount(Number(e.target.value))}
-                    className="w-full accent-blue-500 cursor-pointer"
-                  />
+                  )}
                 </div>
               )}
 
