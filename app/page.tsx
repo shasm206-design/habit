@@ -17,7 +17,7 @@ export interface DayProgress {
     skipped?: boolean;
     skipReason?: string;
     editedLater?: boolean;
-  } | number; // دعم للتوافقيّة مع البيانات القديمة
+  } | number;
 }
 
 export interface TaskItem {
@@ -39,9 +39,86 @@ export interface ExtendedGoal {
 
 const COLOR_OPTIONS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
+const TRANSLATIONS = {
+  ar: {
+    welcome: 'مرحباً،',
+    todayDate: 'تاريخ اليوم:',
+    signOut: 'تسجيل الخروج',
+    signIn: 'تسجيل الدخول 🔐',
+    habitsTab: '🎯 عاداتي اليومية',
+    todoTab: '📝 المهام (To-Do)',
+    goalsTab: '🏆 أهدافي الممتدة',
+    myHabits: 'عاداتي اليومية',
+    editOrder: 'تعديل والترتيب ✏️',
+    doneSave: 'تم الحفظ ✔️',
+    noHabits: 'لا توجد عادات مسجلة لهذا اليوم المختار.',
+    add: 'إضافة ➕',
+    addHabit: 'إضافة عادة جديدة',
+    editHabit: 'تعديل العادة',
+    habitTitle: 'اسم العادة',
+    category: 'تصنيف العادة',
+    positive: '🎯 عادة إيجابية (بناء)',
+    negative: '🛡️ عادة سيئة (ترك)',
+    type: 'نوع العادة',
+    task: 'مهمة',
+    timer: 'مؤقت',
+    counter: 'عداد',
+    useRange: '⚙️ تفعيل المستويات الثلاثة المرنة',
+    minGoal: 'الحد الأدنى (خطوة التعثر 🛡️)',
+    targetGoal: 'الهدف المعتاد (100% إنجاز)',
+    stretchGoal: 'المستوى الممتد (بونص 👑)',
+    targetCount: 'تحديد العدد المستهدف',
+    color: 'لون أشكال العادة',
+    save: 'حفظ',
+    cancel: 'إلغاء',
+    wheelTitle: '🎡 عجلة المكافآت المستحقة',
+    spinWheel: 'تدوير العجلة 🎉',
+    restDay: '🛡️ يوم استراحة ومكافأة (الستريك محمّي)'
+  },
+  en: {
+    welcome: 'Welcome,',
+    todayDate: 'Today:',
+    signOut: 'Sign Out',
+    signIn: 'Sign In 🔐',
+    habitsTab: '🎯 Daily Habits',
+    todoTab: '📝 To-Do List',
+    goalsTab: '🏆 Extended Goals',
+    myHabits: 'My Daily Habits',
+    editOrder: 'Edit & Reorder ✏️',
+    doneSave: 'Saved ✔️',
+    noHabits: 'No habits recorded for this selected day.',
+    add: 'Add ➕',
+    addHabit: 'Add New Habit',
+    editHabit: 'Edit Habit',
+    habitTitle: 'Habit Title',
+    category: 'Habit Category',
+    positive: '🎯 Positive Habit',
+    negative: '🛡️ Bad Habit (Quit)',
+    type: 'Habit Type',
+    task: 'Task',
+    timer: 'Timer',
+    counter: 'Counter',
+    useRange: '⚙️ Enable Flexible 3-Tier Goals',
+    minGoal: 'Min Goal (Safety Net 🛡️)',
+    targetGoal: 'Target Goal (100% Complete)',
+    stretchGoal: 'Stretch Goal (Bonus 👑)',
+    targetCount: 'Set Target Count',
+    color: 'Habit Color',
+    save: 'Save',
+    cancel: 'Cancel',
+    wheelTitle: '🎡 Reward Fortune Wheel',
+    spinWheel: 'Spin the Wheel 🎉',
+    restDay: '🛡️ Rest & Reward Day (Streak Protected)'
+  }
+};
+
 export default function Home() {
+  const [lang, setLang] = useState<'ar' | 'en'>('ar');
+  const t = TRANSLATIONS[lang];
+
   const [user, setUser] = useState<User | null>(null);
   const [displayName, setDisplayName] = useState<string>('هاشم');
+
   const [habits, setHabits] = useState<Habit[]>([]);
   const [dailyData, setDailyData] = useState<{ [date: string]: DayProgress }>({});
   const [tasks, setTasks] = useState<{ [date: string]: TaskItem[] }>({});
@@ -54,12 +131,14 @@ export default function Home() {
   const [isEditMode, setIsEditMode] = useState(false);
 
   // إعدادات المكافآت والعجلة
+  const [restDayOfWeek, setRestDayOfWeek] = useState<number>(5); // الجمعة
   const [wheelTriggerMode, setWheelTriggerMode] = useState<'pct80' | 'restDay' | 'both' | 'disabled'>('both');
   const [userRewards, setUserRewards] = useState<string[]>([
     'طلب وجبة مفضلة 🍕',
     'مشاهدة فيلم أو مسلسل 🎬',
     'ساعة لعب إضافية 🎮',
-    'جولة بالسيارة مع القهوة ☕'
+    'جولة بالسيارة مع القهوة ☕',
+    'شراء شيء بسيط لنفسك 🎁'
   ]);
   const [newRewardInput, setNewRewardInput] = useState('');
   const [isWheelModalOpen, setIsWheelModalOpen] = useState(false);
@@ -67,7 +146,7 @@ export default function Home() {
   const [wheelRotation, setWheelRotation] = useState(0);
   const [wonReward, setWonReward] = useState<string | null>(null);
 
-  // Modals
+  // Modals & Timers
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
@@ -77,6 +156,7 @@ export default function Home() {
   const [title, setTitle] = useState('');
   const [habitType, setHabitType] = useState<'عداد' | 'مؤقت' | 'مهمة'>('عداد');
   const [habitCategory, setHabitCategory] = useState<'إيجابية' | 'سيئة'>('إيجابية');
+  const [useRange, setUseRange] = useState<boolean>(true);
   const [minValInput, setMinValInput] = useState<number>(5);
   const [targetCount, setTargetCount] = useState<number>(10);
   const [stretchCount, setStretchCount] = useState<number>(20);
@@ -94,12 +174,18 @@ export default function Home() {
 
   const getLocalDateString = () => {
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   useEffect(() => {
     const todayStr = getLocalDateString();
     setSelectedDate(todayStr);
+
+    const savedLang = localStorage.getItem('habit_tracker_lang');
+    if (savedLang === 'en' || savedLang === 'ar') setLang(savedLang);
 
     const savedName = localStorage.getItem('habit_tracker_user_name');
     if (savedName) setDisplayName(savedName);
@@ -124,8 +210,8 @@ export default function Home() {
             if (data.userRewards) setUserRewards(data.userRewards);
             if (data.wheelTriggerMode) setWheelTriggerMode(data.wheelTriggerMode);
             if (data.tasks) {
-              const processed = autoCarryOverTasks ? handleCarryOverTasks(data.tasks, todayStr) : data.tasks;
-              setTasks(processed);
+              const processedTasks = autoCarryOverTasks ? handleCarryOverTasks(data.tasks, todayStr) : data.tasks;
+              setTasks(processedTasks);
             }
           }
         });
@@ -147,6 +233,11 @@ export default function Home() {
 
     return () => unsubscribeAuth();
   }, [autoCarryOverTasks]);
+
+  const toggleLanguage = (newLang: 'ar' | 'en') => {
+    setLang(newLang);
+    localStorage.setItem('habit_tracker_lang', newLang);
+  };
 
   const saveData = async (
     updatedHabits = habits, 
@@ -177,7 +268,7 @@ export default function Home() {
           wheelTriggerMode: triggerModeToSave
         }, { merge: true });
       } catch (err) {
-        console.error('خطأ في الحفظ:', err);
+        console.error('خطأ في حفظ البيانات:', err);
       }
     } else {
       localStorage.setItem('habit_tracker_habits', JSON.stringify(updatedHabits));
@@ -225,7 +316,12 @@ export default function Home() {
     a.click();
   };
 
-  const getSelectedDayOfWeek = () => new Date(selectedDate || getLocalDateString()).getDay();
+  const getSelectedDayOfWeek = () => {
+    if (!selectedDate) return 0;
+    return new Date(selectedDate).getDay();
+  };
+
+  const isCurrentDateRestDay = getSelectedDayOfWeek() === restDayOfWeek;
 
   const visibleHabits = habits.filter((h) => 
     !h.paused && (!h.repeatDays || h.repeatDays.includes(getSelectedDayOfWeek()))
@@ -279,13 +375,56 @@ export default function Home() {
       const data = getHabitData(h.id);
       const target = h.targetCount || 1;
       if (data.count >= target) totalScore += 1;
-      else if (h.minMinutes && data.count >= h.minMinutes) totalScore += 0.5; // إنجاز أدنى يحمي النسبة
+      else if (h.minMinutes && data.count >= h.minMinutes) totalScore += 0.5;
     });
 
     return Math.round((totalScore / activeHabits.length) * 100);
   };
 
   const totalPercentage = calculateTotalDayPercentage();
+
+  const isWheelUnlocked = () => {
+    if (wheelTriggerMode === 'disabled') return false;
+    const is80 = totalPercentage >= 80;
+    const isRest = isCurrentDateRestDay;
+
+    if (wheelTriggerMode === 'pct80') return is80;
+    if (wheelTriggerMode === 'restDay') return isRest;
+    return is80 || isRest;
+  };
+
+  const canSpinWheel = isWheelUnlocked();
+
+  const handleSpinWheel = () => {
+    if (isSpinning || userRewards.length === 0) return;
+    setIsSpinning(true);
+    setWonReward(null);
+
+    const extraDegrees = Math.floor(Math.random() * 360) + 1440;
+    const newDegree = wheelRotation + extraDegrees;
+    setWheelRotation(newDegree);
+
+    setTimeout(() => {
+      setIsSpinning(false);
+      const actualDegree = newDegree % 360;
+      const segmentAngle = 360 / userRewards.length;
+      const wonIndex = Math.floor((360 - (actualDegree % 360)) / segmentAngle) % userRewards.length;
+      setWonReward(userRewards[wonIndex]);
+    }, 4000);
+  };
+
+  const handleAddReward = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRewardInput.trim()) return;
+    const updated = [...userRewards, newRewardInput.trim()];
+    saveData(habits, dailyData, tasks, displayName, extendedGoals, updated);
+    setNewRewardInput('');
+  };
+
+  const handleDeleteReward = (index: number) => {
+    const updated = userRewards.filter((_, i) => i !== index);
+    saveData(habits, dailyData, tasks, displayName, extendedGoals, updated);
+  };
 
   const handleSaveHabit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -300,8 +439,8 @@ export default function Home() {
               title, 
               type: habitType,
               targetCount: Number(targetCount) || 1, 
-              minMinutes: Number(minValInput) || undefined,
-              maxMinutes: Number(stretchCount) || undefined,
+              minMinutes: useRange ? Number(minValInput) : undefined,
+              maxMinutes: useRange ? Number(stretchCount) : undefined,
               unit, 
               color: selectedColor,
               repeatDays: selectedDays,
@@ -315,8 +454,8 @@ export default function Home() {
         title,
         type: habitType,
         targetCount: Number(targetCount) || 1,
-        minMinutes: Number(minValInput) || undefined,
-        maxMinutes: Number(stretchCount) || undefined,
+        minMinutes: useRange ? Number(minValInput) : undefined,
+        maxMinutes: useRange ? Number(stretchCount) : undefined,
         unit,
         color: selectedColor,
         repeatDays: selectedDays,
@@ -348,10 +487,40 @@ export default function Home() {
     setGoalTitle('');
   };
 
+  const getTrophyStatus = (pct: number) => {
+    if (pct >= 100) {
+      return { 
+        trophy: '👑 🎉', 
+        label: lang === 'ar' ? 'يا استثنائي (بونص)' : 'Exceptional (Bonus)', 
+        desc: lang === 'ar' ? 'أداء مبهر يفوق التوقعات!' : 'Outstanding performance!',
+        bgGradient: 'from-amber-400 via-yellow-500 to-amber-600',
+        textColor: 'text-black'
+      };
+    }
+    if (pct >= 80) {
+      return { 
+        trophy: '🥇 🥳', 
+        label: lang === 'ar' ? 'ممتاز (العجلة مفتوحة)' : 'Excellent (Wheel Unlocked)', 
+        desc: lang === 'ar' ? 'إنجاز رفيع ومستوى متقدم' : 'Great progress',
+        bgGradient: 'from-yellow-500 to-amber-500',
+        textColor: 'text-black'
+      };
+    }
+    return { 
+      trophy: '🥈', 
+      label: lang === 'ar' ? 'جيد' : 'Good', 
+      desc: lang === 'ar' ? 'استمرار رائع وتقدم ملحوظ' : 'Consistent effort',
+      bgGradient: 'from-blue-600 to-indigo-600',
+      textColor: 'text-white'
+    };
+  };
+
+  const status = getTrophyStatus(totalPercentage);
+
   return (
-    <div className="max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 dir-rtl text-right" dir="rtl">
+    <div className={`max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 select-none ${lang === 'ar' ? 'dir-rtl text-right' : 'dir-ltr text-left'}`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       
-      {/* 1. الترويسة الرئيسية وتفاصيل الحساب */}
+      {/* 1. الترويسة الرئيسية + تفاصيل الحساب */}
       <div className="flex justify-between items-center mb-6 pt-2">
         <div className="flex items-center gap-3">
           <button 
@@ -362,14 +531,14 @@ export default function Home() {
           </button>
           <div>
             <h1 className="text-xl md:text-2xl font-extrabold bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
-              مرحباً، {displayName}
+              {t.welcome} {displayName}
             </h1>
-            <p className="text-xs text-blue-400/80 font-medium">تاريخ اليوم: {selectedDate}</p>
+            <p className="text-xs text-blue-400/80 font-medium">{t.todayDate} {selectedDate}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {wheelTriggerMode !== 'disabled' && totalPercentage >= 80 && (
+          {canSpinWheel && (
             <button
               onClick={() => setIsWheelModalOpen(true)}
               className="text-xs bg-gradient-to-r from-amber-500 to-yellow-500 text-black px-3.5 py-2 rounded-xl font-black shadow-lg animate-bounce transition"
@@ -380,57 +549,64 @@ export default function Home() {
 
           {user ? (
             <button onClick={() => signOut(auth)} className="text-xs bg-red-500/20 text-red-400 px-3.5 py-2 rounded-xl font-bold border border-red-500/30">
-              تسجيل الخروج
+              {t.signOut}
             </button>
           ) : (
             <button onClick={() => setIsProfileModalOpen(true)} className="text-xs bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5 py-2 rounded-xl font-bold shadow-lg">
-              تسجيل الدخول 🔐
+              {t.signIn}
             </button>
           )}
         </div>
       </div>
 
-      {/* 2. شريط النسبة المئوية الذكي */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4.5 rounded-3xl flex justify-between items-center px-6 shadow-xl mb-6 border border-white/10">
+      {/* شارة يوم الإجازة المجدول */}
+      {isCurrentDateRestDay && (
+        <div className="mb-4 p-3 bg-indigo-600/20 border border-indigo-500/40 rounded-2xl text-center text-xs font-bold text-indigo-300 shadow-md">
+          {t.restDay} ☕
+        </div>
+      )}
+
+      {/* 2. شريط النسبة المئوية */}
+      <div className={`bg-gradient-to-r ${status.bgGradient} ${status.textColor} p-4.5 rounded-3xl flex justify-between items-center px-6 shadow-xl mb-6 border border-white/20 transition-all duration-300`}>
         <div className="flex items-center gap-3.5">
-          <span className="text-3xl">🥇</span>
+          <span className="text-3xl filter drop-shadow">{status.trophy}</span>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-black text-lg">{totalPercentage}%</span>
-              <span className="text-xs font-black px-2 py-0.5 rounded-lg bg-black/20">
-                {totalPercentage >= 80 ? 'إنجاز ممتاز 🥳' : 'استمرار رائع 🚀'}
+              <span className="font-black text-lg tracking-wide block">{totalPercentage}%</span>
+              <span className="text-xs font-black px-2 py-0.5 rounded-lg bg-black/20 backdrop-blur-sm">
+                {status.label}
               </span>
             </div>
-            <span className="text-xs font-medium opacity-90 block mt-0.5">معدل التزام العادات المستحقة اليوم</span>
+            <span className="text-xs font-medium opacity-90 block mt-0.5">{status.desc}</span>
           </div>
         </div>
         <input 
           type="date" 
           value={selectedDate} 
           onChange={(e) => setSelectedDate(e.target.value)}
-          className="bg-black/20 text-white font-extrabold p-2 rounded-xl border border-white/10 outline-none text-xs cursor-pointer"
+          className="bg-black/20 text-current font-extrabold p-2 rounded-xl border border-black/10 outline-none text-xs cursor-pointer shadow-inner"
         />
       </div>
 
-      {/* 3. التبويبات الرئيسية الثلاثة */}
+      {/* 3. التبويبات الرئيسية */}
       <div className="grid grid-cols-3 gap-1.5 bg-[#161e2c] p-1.5 rounded-2xl border border-gray-700/80 mb-6 text-center text-xs md:text-sm font-bold">
         <button
           onClick={() => setActiveMainTab('habits')}
           className={`py-3 rounded-xl transition ${activeMainTab === 'habits' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400'}`}
         >
-          🎯 عاداتي اليومية
+          {t.habitsTab}
         </button>
         <button
           onClick={() => setActiveMainTab('todo')}
           className={`py-3 rounded-xl transition ${activeMainTab === 'todo' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400'}`}
         >
-          📝 المهام (To-Do)
+          {t.todoTab}
         </button>
         <button
           onClick={() => setActiveMainTab('goals')}
           className={`py-3 rounded-xl transition ${activeMainTab === 'goals' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400'}`}
         >
-          🏆 أهدافي الممتدة
+          {t.goalsTab}
         </button>
       </div>
 
@@ -438,26 +614,26 @@ export default function Home() {
       {activeMainTab === 'habits' && (
         <>
           <div className="flex justify-between items-center mb-4 px-2">
-            <h2 className="text-2xl font-bold">عاداتي</h2>
+            <h2 className="text-2xl font-bold">{t.myHabits}</h2>
             <button
               onClick={() => setIsEditMode(!isEditMode)}
               className="text-xs px-4 py-2 rounded-xl font-bold bg-[#18202e] text-gray-300 border border-gray-700"
             >
-              {isEditMode ? 'تم الحفظ ✔️' : 'تعديل والترتيب ✏️'}
+              {isEditMode ? t.doneSave : t.editOrder}
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {visibleHabits.length === 0 ? (
               <div className="col-span-full text-center py-12 text-gray-500 text-sm bg-[#131a26] rounded-3xl border border-dashed border-gray-800">
-                لا توجد عادات مسجلة لهذا اليوم المختار.
+                {t.noHabits}
               </div>
             ) : (
               visibleHabits.map((habit) => {
                 const habitData = getHabitData(habit.id);
 
                 return (
-                  <div key={habit.id} className="relative group">
+                  <div key={habit.id} className="relative group space-y-1">
                     <HabitCard
                       habit={habit}
                       count={habitData.count}
@@ -469,6 +645,7 @@ export default function Home() {
                         setTitle(habit.title);
                         setHabitType(habit.type || 'عداد');
                         setHabitCategory(habit.category || 'إيجابية');
+                        setUseRange(!!(habit.minMinutes && habit.maxMinutes));
                         setMinValInput(habit.minMinutes || 5);
                         setTargetCount(habit.targetCount || 10);
                         setStretchCount(habit.maxMinutes || 20);
@@ -483,7 +660,7 @@ export default function Home() {
                       }}
                     />
 
-                    {/* أزرار التخطي وتعديل النطاق بمرونة */}
+                    {/* أزرار التحكم بالعد والتخطي المرن */}
                     <div className="flex justify-between items-center px-3 pt-1 text-[11px] font-bold">
                       <button
                         onClick={() => toggleSkipHabit(habit.id)}
@@ -494,10 +671,10 @@ export default function Home() {
                         {habitData.skipped ? '🛡️ مستثناة (تخطي محمي)' : 'تخطي اليوم 🛡️'}
                       </button>
                       
-                      <div className="flex gap-1">
-                        <button onClick={() => updateHabitCount(habit.id, Math.max(0, habitData.count - 1))} className="px-2 py-0.5 bg-gray-800 rounded font-bold">-</button>
-                        <span className="text-blue-400 px-1">{habitData.count}</span>
-                        <button onClick={() => updateHabitCount(habit.id, habitData.count + 1)} className="px-2 py-0.5 bg-gray-800 rounded font-bold">+</button>
+                      <div className="flex items-center gap-1.5 bg-[#161e2c] border border-gray-800 px-2 py-0.5 rounded-lg">
+                        <button onClick={() => updateHabitCount(habit.id, Math.max(0, habitData.count - 1))} className="text-gray-300 font-bold px-1 hover:text-white">-</button>
+                        <span className="text-blue-400 font-extrabold px-1">{habitData.count}</span>
+                        <button onClick={() => updateHabitCount(habit.id, habitData.count + 1)} className="text-gray-300 font-bold px-1 hover:text-white">+</button>
                       </div>
                     </div>
                   </div>
@@ -631,6 +808,7 @@ export default function Home() {
             setTitle('');
             setHabitType('عداد');
             setHabitCategory('إيجابية');
+            setUseRange(true);
             setMinValInput(5);
             setTargetCount(10);
             setStretchCount(20);
@@ -638,99 +816,76 @@ export default function Home() {
             setSelectedDays([0, 1, 2, 3, 4, 5, 6]);
             setIsAddModalOpen(true);
           }}
-          className="fixed bottom-16 right-8 w-14 h-14 bg-gradient-to-tr from-blue-600 to-indigo-500 text-white rounded-2xl shadow-2xl text-3xl font-bold flex items-center justify-center border border-white/20 active:scale-95 z-40"
+          className={`fixed bottom-16 w-14 h-14 bg-gradient-to-tr from-blue-600 to-indigo-500 text-white rounded-2xl shadow-2xl text-3xl font-bold flex items-center justify-center border border-white/20 active:scale-95 z-40 ${lang === 'ar' ? 'right-8' : 'left-8'}`}
         >
           +
         </button>
       )}
 
-      {/* نافذة إضافة وتعديل عادة المحدثة */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl my-8">
-            <div className="flex justify-between items-center border-b border-gray-700/80 pb-3">
-              <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 text-sm">إلغاء</button>
-              <h3 className="text-lg font-bold">{editingHabit ? 'تعديل العادة' : 'إضافة عادة جديدة'}</h3>
-              <button onClick={handleSaveHabit} className="text-blue-400 font-bold text-sm">حفظ</button>
+      {/* نافذة عجلة المكافآت التفاعلية 🎡 */}
+      {isWheelModalOpen && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-sm space-y-5 text-white shadow-2xl relative text-center">
+            <button onClick={() => setIsWheelModalOpen(false)} className="absolute top-4 left-4 text-gray-400 font-bold">✕</button>
+            <h3 className="text-xl font-black text-amber-400">{t.wheelTitle}</h3>
+
+            <div className="relative w-64 h-64 mx-auto my-4 flex items-center justify-center">
+              <div className="absolute -top-3 z-20 text-3xl">🔻</div>
+              <div 
+                className="w-full h-full rounded-full border-4 border-amber-400 shadow-2xl overflow-hidden relative transition-all duration-[4000ms] ease-out"
+                style={{ transform: `rotate(${wheelRotation}deg)` }}
+              >
+                {userRewards.map((reward, i) => {
+                  const angle = 360 / userRewards.length;
+                  return (
+                    <div
+                      key={i}
+                      className="absolute w-full h-full text-center flex justify-center pt-2 font-bold text-[10px]"
+                      style={{
+                        transform: `rotate(${i * angle}deg)`,
+                        transformOrigin: '50% 50%',
+                        color: i % 2 === 0 ? '#f59e0b' : '#3b82f6'
+                      }}
+                    >
+                      <span className="bg-black/40 px-2 py-0.5 rounded-md border border-white/10">{reward}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            <form onSubmit={handleSaveHabit} className="space-y-4">
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">اسم العادة</label>
-                <input
-                  type="text"
-                  placeholder="مثلاً: قراءة قرآن أو رياضية"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full bg-[#0d131d] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm"
-                  required
-                />
+            {wonReward && (
+              <div className="p-3 bg-amber-500/20 border border-amber-500/50 rounded-2xl text-amber-300 font-extrabold text-sm animate-bounce">
+                🎉 الفائز: {wonReward}! استمتع بمكافأتك 🎁
               </div>
+            )}
 
-              {/* المستويات الثلاثة المرنة للعادة */}
-              <div className="space-y-3 bg-[#0d131d] p-4 rounded-2xl border border-gray-700">
-                <label className="text-xs font-bold text-gray-300 block">🎯 المستويات الثلاثة المرنة للعادة:</label>
-                
-                <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                  <div>
-                    <span className="text-gray-400 block text-[10px] mb-1">الحد الأدنى</span>
-                    <input
-                      type="number"
-                      value={minValInput}
-                      onChange={(e) => setMinValInput(Number(e.target.value))}
-                      className="w-full bg-[#161e2c] border border-gray-700 p-2 rounded-xl text-center font-bold text-white outline-none"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-blue-400 block text-[10px] mb-1">الهدف المعتاد (100%)</span>
-                    <input
-                      type="number"
-                      value={targetCount}
-                      onChange={(e) => setTargetCount(Number(e.target.value))}
-                      className="w-full bg-[#161e2c] border border-blue-500/50 p-2 rounded-xl text-center font-bold text-blue-400 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-amber-400 block text-[10px] mb-1">الممتد (بونص 👑)</span>
-                    <input
-                      type="number"
-                      value={stretchCount}
-                      onChange={(e) => setStretchCount(Number(e.target.value))}
-                      className="w-full bg-[#161e2c] border border-gray-700 p-2 rounded-xl text-center font-bold text-amber-400 outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-400 block mb-2">أيام التكرار</label>
-                <div className="flex justify-between bg-[#0d131d] p-2 rounded-xl border border-gray-700 text-xs font-bold">
-                  {['أحد', 'ثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'].map((dayName, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => {
-                        setSelectedDays(selectedDays.includes(i) ? selectedDays.filter((d) => d !== i) : [...selectedDays, i]);
-                      }}
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center ${selectedDays.includes(i) ? 'bg-blue-600 text-white' : 'text-gray-500'}`}
-                    >
-                      {dayName[0]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </form>
+            <button
+              onClick={handleSpinWheel}
+              disabled={isSpinning || userRewards.length === 0}
+              className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black text-sm rounded-xl shadow-lg active:scale-95 disabled:opacity-50"
+            >
+              {isSpinning ? 'جاري التدوير... 🌀' : t.spinWheel}
+            </button>
           </div>
         </div>
       )}
 
       {/* نافذة تفاصيل البروفايل وتصدير البيانات 👤 */}
       {isProfileModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-4 text-white relative">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-4 text-white relative my-8">
             <button onClick={() => setIsProfileModalOpen(false)} className="absolute top-4 left-4 text-gray-400 font-bold">✕</button>
             <h3 className="text-xl font-black text-center">{displayName}</h3>
             
+            <div className="bg-[#0d131d] border border-gray-800 p-3 rounded-2xl flex justify-between items-center text-xs font-bold">
+              <span className="text-gray-300">اللغة / Language:</span>
+              <div className="flex gap-1">
+                <button onClick={() => toggleLanguage('ar')} className={`px-3 py-1 rounded-xl ${lang === 'ar' ? 'bg-blue-600' : 'text-gray-400'}`}>العربية</button>
+                <button onClick={() => toggleLanguage('en')} className={`px-3 py-1 rounded-xl ${lang === 'en' ? 'bg-blue-600' : 'text-gray-400'}`}>English</button>
+              </div>
+            </div>
+
             <button
               onClick={exportBackupJSON}
               className="w-full py-3 bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 rounded-xl text-xs font-bold"
