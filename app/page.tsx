@@ -79,10 +79,7 @@ const TRANSLATIONS = {
     pauseTimer: '⏸️ إيقاف مؤقت',
     resetTimer: '↺ إعادة',
     overtime: 'وقت إضافي ⏱️',
-    langLabel: 'لغة الواجهة / Language:',
-    wheelTitle: '🎡 عجلة المكافآت المستحقة',
-    spinWheel: 'تدوير العجلة 🎉',
-    restDay: '🛡️ يوم استراحة ومكافأة (الستريك محمّي)'
+    langLabel: 'لغة الواجهة / Language:'
   },
   en: {
     welcome: 'Welcome,',
@@ -129,10 +126,7 @@ const TRANSLATIONS = {
     pauseTimer: '⏸️ Pause Timer',
     resetTimer: '↺ Reset',
     overtime: 'Overtime ⏱️',
-    langLabel: 'Interface Language:',
-    wheelTitle: '🎡 Reward Fortune Wheel',
-    spinWheel: 'Spin the Wheel 🎉',
-    restDay: '🛡️ Rest & Reward Day (Streak Protected)'
+    langLabel: 'Interface Language:'
   }
 };
 
@@ -157,15 +151,13 @@ export default function Home() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
-  // إعدادات المكافآت والعجلة الدوّارة
-  const [restDayOfWeek, setRestDayOfWeek] = useState<number>(5); // 5 = الجمعة
-  const [wheelTriggerMode, setWheelTriggerMode] = useState<'pct80' | 'restDay' | 'both'>('both');
+  // إعدادات العجلة والمكافآت
+  const [wheelTriggerMode, setWheelTriggerMode] = useState<'pct80' | 'restDay' | 'both' | 'disabled'>('both');
   const [userRewards, setUserRewards] = useState<string[]>([
     'طلب وجبة مفضلة 🍕',
     'مشاهدة فيلم أو مسلسل 🎬',
     'ساعة لعب إضافية 🎮',
-    'جولة بالسيارة مع القهوة ☕',
-    'شراء شيء بسيط لنفسك 🎁'
+    'جولة بالسيارة مع القهوة ☕'
   ]);
   const [newRewardInput, setNewRewardInput] = useState('');
   const [isWheelModalOpen, setIsWheelModalOpen] = useState(false);
@@ -192,6 +184,7 @@ export default function Home() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberEmail, setRememberEmail] = useState(true);
+  const [authError, setAuthError] = useState('');
 
   // Form State
   const [title, setTitle] = useState('');
@@ -279,6 +272,127 @@ export default function Home() {
     localStorage.setItem('habit_tracker_lang', newLang);
   };
 
+  // إدارة المؤقت التفاعلي
+  useEffect(() => {
+    if (!activeHabitCounter || activeHabitCounter.type !== 'مؤقت') return;
+
+    const habitId = activeHabitCounter.id;
+    const storedEndTime = localStorage.getItem(`timer_end_${habitId}`);
+    const storedPausedLeft = localStorage.getItem(`timer_paused_${habitId}`);
+
+    const maxGoal = activeHabitCounter.maxMinutes || activeHabitCounter.targetCount || 30;
+
+    if (storedEndTime) {
+      const endTime = parseInt(storedEndTime, 10);
+      const now = Date.now();
+      const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
+      setTimerSecondsLeft(remaining);
+      setIsTimerRunning(remaining > 0);
+      setIsTimerFinished(remaining === 0);
+    } else if (storedPausedLeft) {
+      setTimerSecondsLeft(parseInt(storedPausedLeft, 10));
+      setIsTimerRunning(false);
+      setIsTimerFinished(false);
+    } else {
+      const currentDoneMinutes = getHabitCount(habitId);
+      const remainingMinutes = Math.max(0, maxGoal - currentDoneMinutes);
+      setTimerSecondsLeft(remainingMinutes * 60);
+      setIsTimerRunning(false);
+      setIsTimerFinished(false);
+      setIsOvertime(false);
+    }
+  }, [activeHabitCounter]);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isTimerRunning && activeHabitCounter && activeHabitCounter.type === 'مؤقت') {
+      timer = setInterval(() => {
+        if (isOvertime) {
+          setTimerSecondsLeft((prev) => {
+            const next = prev + 1;
+            if (next % 60 === 0) {
+              const currentMins = getHabitCount(activeHabitCounter.id);
+              updateHabitCount(activeHabitCounter.id, currentMins + 1);
+            }
+            return next;
+          });
+        } else {
+          const storedEndTime = localStorage.getItem(`timer_end_${activeHabitCounter.id}`);
+          if (storedEndTime) {
+            const remaining = Math.max(0, Math.floor((parseInt(storedEndTime, 10) - Date.now()) / 1000));
+            setTimerSecondsLeft(remaining);
+
+            if (remaining <= 0) {
+              setIsTimerRunning(false);
+              setIsTimerFinished(true);
+              localStorage.removeItem(`timer_end_${activeHabitCounter.id}`);
+              localStorage.removeItem(`timer_paused_${activeHabitCounter.id}`);
+              const maxVal = activeHabitCounter.maxMinutes || activeHabitCounter.targetCount || 30;
+              updateHabitCount(activeHabitCounter.id, maxVal);
+            }
+          }
+        }
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [isTimerRunning, isOvertime, activeHabitCounter]);
+
+  const startTimer = () => {
+    if (!activeHabitCounter) return;
+    const maxVal = activeHabitCounter.maxMinutes || activeHabitCounter.targetCount || 30;
+    const duration = timerSecondsLeft > 0 ? timerSecondsLeft : maxVal * 60;
+    const endTime = Date.now() + duration * 1000;
+    localStorage.setItem(`timer_end_${activeHabitCounter.id}`, endTime.toString());
+    localStorage.removeItem(`timer_paused_${activeHabitCounter.id}`);
+    setIsTimerRunning(true);
+    setIsTimerFinished(false);
+  };
+
+  const pauseTimer = () => {
+    if (!activeHabitCounter) return;
+    localStorage.setItem(`timer_paused_${activeHabitCounter.id}`, timerSecondsLeft.toString());
+    localStorage.removeItem(`timer_end_${activeHabitCounter.id}`);
+    setIsTimerRunning(false);
+  };
+
+  const resetTimer = () => {
+    if (!activeHabitCounter) return;
+    localStorage.removeItem(`timer_end_${activeHabitCounter.id}`);
+    localStorage.removeItem(`timer_paused_${activeHabitCounter.id}`);
+    setIsTimerRunning(false);
+    setIsTimerFinished(false);
+    setIsOvertime(false);
+    const maxVal = activeHabitCounter.maxMinutes || activeHabitCounter.targetCount || 30;
+    const currentDone = getHabitCount(activeHabitCounter.id);
+    const remaining = Math.max(0, maxVal - currentDone);
+    setTimerSecondsLeft(remaining * 60);
+  };
+
+  const handleCarryOverTasks = (allTasks: { [date: string]: TaskItem[] }, todayStr: string) => {
+    const updated = { ...allTasks };
+    const dates = Object.keys(updated).sort();
+    let carriedOver: TaskItem[] = [];
+
+    dates.forEach((dateKey) => {
+      if (dateKey < todayStr) {
+        const uncompleted = updated[dateKey].filter((t) => !t.completed);
+        if (uncompleted.length > 0) {
+          carriedOver = [...carriedOver, ...uncompleted];
+          updated[dateKey] = updated[dateKey].filter((t) => t.completed);
+        }
+      }
+    });
+
+    if (carriedOver.length > 0) {
+      const todayList = updated[todayStr] || [];
+      const existingIds = new Set(todayList.map((t) => t.id));
+      const filteredCarried = carriedOver.filter((t) => !existingIds.has(t.id));
+      updated[todayStr] = [...todayList, ...filteredCarried];
+    }
+
+    return updated;
+  };
+
   const saveData = async (
     updatedHabits: Habit[], 
     updatedDaily: { [date: string]: DayProgress },
@@ -321,37 +435,73 @@ export default function Home() {
     }
   };
 
-  const handleCarryOverTasks = (allTasks: { [date: string]: TaskItem[] }, todayStr: string) => {
-    const updated = { ...allTasks };
-    const dates = Object.keys(updated).sort();
-    let carriedOver: TaskItem[] = [];
+  const handleAddReward = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRewardInput.trim()) return;
+    const updated = [...userRewards, newRewardInput.trim()];
+    saveData(habits, dailyData, tasks, displayName, extendedGoals, updated);
+    setNewRewardInput('');
+  };
 
-    dates.forEach((dateKey) => {
-      if (dateKey < todayStr) {
-        const uncompleted = updated[dateKey].filter((t) => !t.completed);
-        if (uncompleted.length > 0) {
-          carriedOver = [...carriedOver, ...uncompleted];
-          updated[dateKey] = updated[dateKey].filter((t) => t.completed);
-        }
-      }
-    });
+  const handleDeleteReward = (index: number) => {
+    const updated = userRewards.filter((_, i) => i !== index);
+    saveData(habits, dailyData, tasks, displayName, extendedGoals, updated);
+  };
 
-    if (carriedOver.length > 0) {
-      const todayList = updated[todayStr] || [];
-      const existingIds = new Set(todayList.map((t) => t.id));
-      const filteredCarried = carriedOver.filter((t) => !existingIds.has(t.id));
-      updated[todayStr] = [...todayList, ...filteredCarried];
+  const moveHabit = (index: number, direction: 'up' | 'down') => {
+    const currentVisible = visibleHabits;
+    const targetVisibleIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetVisibleIndex < 0 || targetVisibleIndex >= currentVisible.length) return;
+
+    const itemToMove = currentVisible[index];
+    const itemToSwap = currentVisible[targetVisibleIndex];
+
+    const fullIndex1 = habits.findIndex((h) => h.id === itemToMove.id);
+    const fullIndex2 = habits.findIndex((h) => h.id === itemToSwap.id);
+
+    if (fullIndex1 !== -1 && fullIndex2 !== -1) {
+      const newHabits = [...habits];
+      const temp = newHabits[fullIndex1];
+      newHabits[fullIndex1] = newHabits[fullIndex2];
+      newHabits[fullIndex2] = temp;
+      saveData(newHabits, dailyData);
     }
+  };
 
-    return updated;
+  const handleDragStart = (index: number) => {
+    if (!isEditMode) return;
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!isEditMode) return;
+    e.preventDefault();
+  };
+
+  const handleDrop = (targetIndex: number) => {
+    if (!isEditMode || draggedIndex === null || draggedIndex === targetIndex) return;
+
+    const currentVisible = visibleHabits;
+    const itemToMove = currentVisible[draggedIndex];
+    const itemToSwap = currentVisible[targetIndex];
+
+    const fullIndex1 = habits.findIndex((h) => h.id === itemToMove.id);
+    const fullIndex2 = habits.findIndex((h) => h.id === itemToSwap.id);
+
+    if (fullIndex1 !== -1 && fullIndex2 !== -1) {
+      const newHabits = [...habits];
+      const temp = newHabits[fullIndex1];
+      newHabits[fullIndex1] = newHabits[fullIndex2];
+      newHabits[fullIndex2] = temp;
+      saveData(newHabits, dailyData);
+    }
+    setDraggedIndex(null);
   };
 
   const getSelectedDayOfWeek = () => {
     if (!selectedDate) return 0;
     return new Date(selectedDate).getDay();
   };
-
-  const isCurrentDateRestDay = getSelectedDayOfWeek() === restDayOfWeek;
 
   const visibleHabits = habits.filter((h) => 
     !h.repeatDays || h.repeatDays.includes(getSelectedDayOfWeek())
@@ -381,84 +531,6 @@ export default function Home() {
       const isCompleted = currentCount >= minThresh;
       updateHabitCount(habit.id, isCompleted ? 0 : minThresh);
     }
-  };
-
-  const calculateHabitScore = (habit: Habit, count: number) => {
-    if (habit.category === 'سيئة') return count === 0 ? 1 : 0;
-    const minThresh = habit.minMinutes || habit.targetCount || 1;
-    const maxThresh = habit.maxMinutes || habit.targetCount || minThresh;
-
-    if (count < minThresh) {
-      return count / minThresh;
-    } else {
-      const bonusPct = maxThresh > minThresh ? ((count - minThresh) / (maxThresh - minThresh)) * 0.2 : 0;
-      return 1.0 + bonusPct;
-    }
-  };
-
-  const currentDayTasks = tasks[selectedDate] || [];
-
-  const calculateTotalDayPercentage = () => {
-    const habitsCount = visibleHabits.length;
-    const tasksCount = currentDayTasks.length;
-    const totalItems = habitsCount + tasksCount;
-
-    if (totalItems === 0) return 0;
-
-    let habitsCompletedScore = 0;
-    visibleHabits.forEach((h) => {
-      const cnt = getHabitCount(h.id);
-      habitsCompletedScore += calculateHabitScore(h, cnt);
-    });
-
-    const tasksCompletedScore = currentDayTasks.filter((t) => t.completed).length;
-
-    return Math.round(((habitsCompletedScore + tasksCompletedScore) / totalItems) * 100);
-  };
-
-  const totalPercentage = calculateTotalDayPercentage();
-
-  // فحص شرط تفعيل عجلة المكافآت
-  const isWheelUnlocked = () => {
-    const is80 = totalPercentage >= 80;
-    const isRest = isCurrentDateRestDay;
-
-    if (wheelTriggerMode === 'pct80') return is80;
-    if (wheelTriggerMode === 'restDay') return isRest;
-    return is80 || isRest; // both
-  };
-
-  const canSpinWheel = isWheelUnlocked();
-
-  const handleSpinWheel = () => {
-    if (isSpinning || userRewards.length === 0) return;
-    setIsSpinning(true);
-    setWonReward(null);
-
-    const extraDegrees = Math.floor(Math.random() * 360) + 1440; // 4 دورات كاملة
-    const newDegree = wheelRotation + extraDegrees;
-    setWheelRotation(newDegree);
-
-    setTimeout(() => {
-      setIsSpinning(false);
-      const actualDegree = newDegree % 360;
-      const segmentAngle = 360 / userRewards.length;
-      const wonIndex = Math.floor((360 - (actualDegree % 360)) / segmentAngle) % userRewards.length;
-      setWonReward(userRewards[wonIndex]);
-    }, 4000);
-  };
-
-  const handleAddReward = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newRewardInput.trim()) return;
-    const updated = [...userRewards, newRewardInput.trim()];
-    saveData(habits, dailyData, tasks, displayName, extendedGoals, updated);
-    setNewRewardInput('');
-  };
-
-  const handleDeleteReward = (index: number) => {
-    const updated = userRewards.filter((_, i) => i !== index);
-    saveData(habits, dailyData, tasks, displayName, extendedGoals, updated);
   };
 
   const handleSaveHabit = (e: React.FormEvent) => {
@@ -509,10 +581,112 @@ export default function Home() {
     setIsAddModalOpen(false);
   };
 
+  const openCounterModal = (habit: Habit) => {
+    setActiveHabitCounter(habit);
+    setTimerMode(habit.preferredMode || 'counter');
+  };
+
+  const togglePreferredMode = (newMode: 'timer' | 'counter') => {
+    if (!activeHabitCounter) return;
+    setTimerMode(newMode);
+    setIsTimerRunning(false);
+    const updatedHabits = habits.map((h) =>
+      h.id === activeHabitCounter.id ? { ...h, preferredMode: newMode } : h
+    );
+    saveData(updatedHabits, dailyData);
+  };
+
+  const currentDayTasks = tasks[selectedDate] || [];
+
+  const addTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskInput.trim()) return;
+    const newTask: TaskItem = {
+      id: Date.now().toString(),
+      title: newTaskInput,
+      completed: false,
+    };
+    const updatedTasks = { ...tasks, [selectedDate]: [...currentDayTasks, newTask] };
+    saveData(habits, dailyData, updatedTasks);
+    setNewTaskInput('');
+  };
+
+  const toggleTask = (taskId: string) => {
+    const updatedList = currentDayTasks.map((t) =>
+      t.id === taskId ? { ...t, completed: !t.completed } : t
+    );
+    const updatedTasks = { ...tasks, [selectedDate]: updatedList };
+    saveData(habits, dailyData, updatedTasks);
+  };
+
+  const deleteTask = (taskId: string) => {
+    const updatedList = currentDayTasks.filter((t) => t.id !== taskId);
+    const updatedTasks = { ...tasks, [selectedDate]: updatedList };
+    saveData(habits, dailyData, updatedTasks);
+  };
+
+  const addExtendedGoal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGoalInput.trim()) return;
+    const newGoal: ExtendedGoal = {
+      id: Date.now().toString(),
+      title: newGoalInput,
+      period: goalSubPeriod,
+      completed: false
+    };
+    const updated = [...extendedGoals, newGoal];
+    saveData(habits, dailyData, tasks, displayName, updated);
+    setNewGoalInput('');
+  };
+
+  const toggleExtendedGoal = (goalId: string) => {
+    const updated = extendedGoals.map((g) => g.id === goalId ? { ...g, completed: !g.completed } : g);
+    saveData(habits, dailyData, tasks, displayName, updated);
+  };
+
+  const deleteExtendedGoal = (goalId: string) => {
+    const updated = extendedGoals.filter((g) => g.id !== goalId);
+    saveData(habits, dailyData, tasks, displayName, updated);
+  };
+
+  const calculateHabitScore = (habit: Habit, count: number) => {
+    if (habit.category === 'سيئة') return count === 0 ? 1 : 0;
+    
+    const minThresh = habit.minMinutes || habit.targetCount || 1;
+    const maxThresh = habit.maxMinutes || habit.targetCount || minThresh;
+
+    if (count < minThresh) {
+      return count / minThresh;
+    } else {
+      const bonusPct = maxThresh > minThresh ? ((count - minThresh) / (maxThresh - minThresh)) * 0.2 : 0;
+      return 1.0 + bonusPct;
+    }
+  };
+
+  const calculateTotalDayPercentage = () => {
+    const habitsCount = visibleHabits.length;
+    const tasksCount = currentDayTasks.length;
+    const totalItems = habitsCount + tasksCount;
+
+    if (totalItems === 0) return 0;
+
+    let habitsCompletedScore = 0;
+    visibleHabits.forEach((h) => {
+      const cnt = getHabitCount(h.id);
+      habitsCompletedScore += calculateHabitScore(h, cnt);
+    });
+
+    const tasksCompletedScore = currentDayTasks.filter((t) => t.completed).length;
+
+    return Math.round(((habitsCompletedScore + tasksCompletedScore) / totalItems) * 100);
+  };
+
+  const totalPercentage = calculateTotalDayPercentage();
+
   const getTrophyStatus = (pct: number) => {
     if (pct >= 100) {
       return { 
-        trophy: '👑 🎉', 
+        trophy: '👑', 
         label: lang === 'ar' ? 'يا استثنائي (بونص)' : 'Exceptional (Bonus)', 
         desc: lang === 'ar' ? 'أداء مبهر يفوق التوقعات!' : 'Outstanding performance!',
         bgGradient: 'from-amber-400 via-yellow-500 to-amber-600',
@@ -521,8 +695,8 @@ export default function Home() {
     }
     if (pct >= 80) {
       return { 
-        trophy: '🥇 🥳', 
-        label: lang === 'ar' ? 'ممتاز (العجلة مفتوحة)' : 'Excellent (Wheel Unlocked)', 
+        trophy: '🥇', 
+        label: lang === 'ar' ? 'ممتاز' : 'Excellent', 
         desc: lang === 'ar' ? 'إنجاز رفيع ومستوى متقدم' : 'Great progress and level',
         bgGradient: 'from-yellow-500 to-amber-500',
         textColor: 'text-black'
@@ -538,6 +712,20 @@ export default function Home() {
   };
 
   const status = getTrophyStatus(totalPercentage);
+
+  const formatTimerString = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
+  const filteredGoals = extendedGoals.filter((g) => g.period === goalSubPeriod);
+  const completedGoalsCount = filteredGoals.filter((g) => g.completed).length;
+  const goalsPct = filteredGoals.length > 0 ? Math.round((completedGoalsCount / filteredGoals.length) * 100) : 0;
+
+  const currentTimerDone = activeHabitCounter ? getHabitCount(activeHabitCounter.id) : 0;
+  const minValThresh = activeHabitCounter?.minMinutes || activeHabitCounter?.targetCount || 1;
+  const isMinReached = currentTimerDone >= minValThresh;
 
   return (
     <div className={`max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 select-none ${lang === 'ar' ? 'dir-rtl text-right' : 'dir-ltr text-left'}`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
@@ -561,32 +749,91 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {canSpinWheel && (
-            <button
-              onClick={() => setIsWheelModalOpen(true)}
-              className="text-xs bg-gradient-to-r from-amber-500 to-yellow-500 text-black px-3.5 py-2 rounded-xl font-black shadow-lg shadow-amber-500/30 animate-bounce transition"
-            >
-              🎡 العجلة 🥳
-            </button>
-          )}
-
+        <div>
           {user ? (
             <button onClick={() => signOut(auth)} className="text-xs bg-red-500/20 text-red-400 px-3.5 py-2 rounded-xl font-bold border border-red-500/30 hover:bg-red-500/30 transition">
               {t.signOut}
             </button>
           ) : (
-            <button onClick={() => setIsAuthModalOpen(true)} className="text-xs bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 px-3.5 py-2 rounded-xl font-bold shadow-lg shadow-blue-600/30 transition">
+            <button onClick={() => setIsProfileModalOpen(true)} className="text-xs bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 px-3.5 py-2 rounded-xl font-bold shadow-lg shadow-blue-600/30 transition">
               {t.signIn}
             </button>
           )}
         </div>
       </div>
 
-      {/* شارة يوم الإجازة المجدول إن وجد */}
-      {isCurrentDateRestDay && (
-        <div className="mb-4 p-3 bg-indigo-600/20 border border-indigo-500/40 rounded-2xl text-center text-xs font-bold text-indigo-300 shadow-md">
-          {t.restDay} ☕
+      {/* نافذة تفاصيل الحساب والإعدادات الشخصية 👤 */}
+      {isProfileModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl relative my-8">
+            <button 
+              onClick={() => setIsProfileModalOpen(false)} 
+              className="absolute top-4 left-4 text-gray-400 hover:text-white text-lg font-bold"
+            >
+              ✕
+            </button>
+
+            <div className="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-500 border-2 border-blue-400/50 flex items-center justify-center text-4xl shadow-xl shadow-blue-500/30 mt-2">
+              👤
+            </div>
+
+            <h3 className="text-2xl font-black text-center">{displayName}</h3>
+
+            {/* شرط فتح عجلة المكافآت */}
+            <div className="bg-[#0d131d] border border-gray-800 rounded-2xl p-4 space-y-3">
+              <label className="text-xs font-bold text-amber-400 block text-right">⚙️ شرط فتح عجلة المكافآت:</label>
+              <div className="space-y-2 text-xs font-bold">
+                {[
+                  { id: 'pct80', label: '🎯 عند تحقيق 80% من الإنجاز أسبوعياً/يومياً' },
+                  { id: 'restDay', label: '🛡️ في يوم الإجازة المجدول فقط' },
+                  { id: 'both', label: '🌟 في كلاهما (عند تحقيق 80% أو يوم الإجازة)' },
+                  { id: 'disabled', label: '🚫 إيقاف العجلة كلياً' }
+                ].map((mode) => (
+                  <button
+                    key={mode.id}
+                    onClick={() => saveData(habits, dailyData, tasks, displayName, extendedGoals, userRewards, mode.id as any)}
+                    className={`w-full p-2.5 rounded-xl border text-right transition ${
+                      wheelTriggerMode === mode.id ? 'bg-amber-500/20 border-amber-500 text-amber-300' : 'bg-[#161e2c] border-gray-800 text-gray-400'
+                    }`}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* قائمة مكافآت العجلة */}
+            <div className="bg-[#0d131d] border border-gray-800 rounded-2xl p-4 space-y-3">
+              <label className="text-xs font-bold text-gray-300 block text-right">🎁 قائمة مكافآتك الخاصة بالعجلة:</label>
+              <form onSubmit={handleAddReward} className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="إضافة مكافأة جديدة..."
+                  value={newRewardInput}
+                  onChange={(e) => setNewRewardInput(e.target.value)}
+                  className="flex-1 bg-[#161e2c] border border-gray-700 p-2 rounded-xl text-xs outline-none text-white"
+                />
+                <button type="submit" className="bg-amber-500 text-black px-3 py-2 rounded-xl text-xs font-bold">إضافة</button>
+              </form>
+              <div className="max-h-32 overflow-y-auto space-y-1.5 pt-1">
+                {userRewards.map((reward, i) => (
+                  <div key={i} className="flex justify-between items-center bg-[#161e2c] p-2 rounded-xl text-xs font-bold border border-gray-800">
+                    <span>{reward}</span>
+                    <button onClick={() => handleDeleteReward(i)} className="text-red-400 text-xs">🗑️</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* لغة الواجهة */}
+            <div className="bg-[#0d131d] border border-gray-800 p-3 rounded-2xl flex justify-between items-center text-xs font-bold">
+              <span className="text-gray-300">لغة الواجهة / Language:</span>
+              <div className="flex gap-1">
+                <button onClick={() => toggleLanguage('ar')} className={`px-3 py-1.5 rounded-xl ${lang === 'ar' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>العربية</button>
+                <button onClick={() => toggleLanguage('en')} className={`px-3 py-1.5 rounded-xl ${lang === 'en' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>English</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -611,168 +858,6 @@ export default function Home() {
           className="bg-black/20 text-current font-extrabold p-2 rounded-xl border border-black/10 outline-none text-xs cursor-pointer shadow-inner"
         />
       </div>
-
-      {/* نافذة عجلة المكافآت التفاعلية 🎡 */}
-      {isWheelModalOpen && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-sm space-y-5 text-white shadow-2xl relative text-center">
-            <button 
-              onClick={() => setIsWheelModalOpen(false)} 
-              className="absolute top-4 left-4 text-gray-400 hover:text-white text-lg font-bold"
-            >
-              ✕
-            </button>
-
-            <h3 className="text-xl font-black text-amber-400 mt-2">{t.wheelTitle}</h3>
-
-            <div className="relative w-64 h-64 mx-auto my-4 flex items-center justify-center">
-              {/* المؤشر العلوي */}
-              <div className="absolute -top-3 z-20 text-3xl filter drop-shadow">🔻</div>
-
-              {/* العجلة الدوارة */}
-              <div 
-                className="w-full h-full rounded-full border-4 border-amber-400 shadow-2xl overflow-hidden relative transition-all duration-[4000ms] ease-out"
-                style={{ transform: `rotate(${wheelRotation}deg)` }}
-              >
-                {userRewards.map((reward, i) => {
-                  const angle = 360 / userRewards.length;
-                  const rotateAngle = i * angle;
-                  return (
-                    <div
-                      key={i}
-                      className="absolute w-full h-full text-center flex justify-center pt-2 font-bold text-[10px]"
-                      style={{
-                        transform: `rotate(${rotateAngle}deg)`,
-                        transformOrigin: '50% 50%',
-                        color: i % 2 === 0 ? '#f59e0b' : '#3b82f6'
-                      }}
-                    >
-                      <span className="bg-black/40 px-2 py-0.5 rounded-md border border-white/10">
-                        {reward}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {wonReward && (
-              <div className="p-3 bg-amber-500/20 border border-amber-500/50 rounded-2xl text-amber-300 font-extrabold text-sm animate-bounce">
-                🎉 الفائز: {wonReward}! استمتع بمكافأتك 🎁
-              </div>
-            )}
-
-            <button
-              onClick={handleSpinWheel}
-              disabled={isSpinning || userRewards.length === 0}
-              className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-black text-sm rounded-xl shadow-lg shadow-amber-500/30 transition active:scale-95 disabled:opacity-50"
-            >
-              {isSpinning ? 'جاري التدوير... 🌀' : t.spinWheel}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* نافذة تفاصيل الحساب + إعدادات العجلة والمكافآت 👤 */}
-      {isProfileModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl relative my-8">
-            <button 
-              onClick={() => setIsProfileModalOpen(false)} 
-              className="absolute top-4 left-4 text-gray-400 hover:text-white text-lg font-bold"
-            >
-              ✕
-            </button>
-
-            <div className="text-center space-y-2">
-              <div className="w-16 h-16 mx-auto rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-500 border-2 border-blue-400/50 flex items-center justify-center text-3xl shadow-xl shadow-blue-500/30">
-                👤
-              </div>
-              <h3 className="text-xl font-black">{displayName}</h3>
-            </div>
-
-            {/* إعدادات شرط تفعيل العجلة */}
-            <div className="bg-[#0d131d] border border-gray-800 p-4 rounded-2xl space-y-3">
-              <label className="text-xs font-bold text-amber-400 block">🎡 شرط فتح عجلة المكافآت:</label>
-              <div className="grid grid-cols-1 gap-2 text-xs font-bold">
-                <button
-                  type="button"
-                  onClick={() => saveData(habits, dailyData, tasks, displayName, extendedGoals, userRewards, 'pct80')}
-                  className={`p-2.5 rounded-xl border text-right transition ${
-                    wheelTriggerMode === 'pct80' ? 'bg-amber-500/20 border-amber-500 text-amber-300' : 'bg-[#161e2c] border-gray-800 text-gray-400'
-                  }`}
-                >
-                  🎯 عند تحقيق 80% من الإنجاز أسبوعياً/يومياً
-                </button>
-                <button
-                  type="button"
-                  onClick={() => saveData(habits, dailyData, tasks, displayName, extendedGoals, userRewards, 'restDay')}
-                  className={`p-2.5 rounded-xl border text-right transition ${
-                    wheelTriggerMode === 'restDay' ? 'bg-amber-500/20 border-amber-500 text-amber-300' : 'bg-[#161e2c] border-gray-800 text-gray-400'
-                  }`}
-                >
-                  🛡️ في يوم الإجازة المجدول فقط
-                </button>
-                <button
-                  type="button"
-                  onClick={() => saveData(habits, dailyData, tasks, displayName, extendedGoals, userRewards, 'both')}
-                  className={`p-2.5 rounded-xl border text-right transition ${
-                    wheelTriggerMode === 'both' ? 'bg-amber-500/20 border-amber-500 text-amber-300' : 'bg-[#161e2c] border-gray-800 text-gray-400'
-                  }`}
-                >
-                  🌟 في كلاهما (عند تحقيق 80% أو يوم الإجازة)
-                </button>
-              </div>
-            </div>
-
-            {/* قائمة مكافآت المستخدم Custom Rewards */}
-            <div className="bg-[#0d131d] border border-gray-800 p-4 rounded-2xl space-y-3">
-              <label className="text-xs font-bold text-gray-300 block">🎁 قائمة مكافآتك الخاصة بالعجلة:</label>
-              <form onSubmit={handleAddReward} className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="إضافة مكافأة جديدة..."
-                  value={newRewardInput}
-                  onChange={(e) => setNewRewardInput(e.target.value)}
-                  className="flex-1 bg-[#161e2c] border border-gray-700 p-2 rounded-xl text-xs outline-none text-white"
-                />
-                <button type="submit" className="bg-amber-500 text-black px-3 py-2 rounded-xl text-xs font-black">إضافة</button>
-              </form>
-              <div className="space-y-1.5 max-h-36 overflow-y-auto pt-1">
-                {userRewards.map((r, idx) => (
-                  <div key={idx} className="flex justify-between items-center bg-[#161e2c] p-2 rounded-xl text-xs font-bold">
-                    <span>{r}</span>
-                    <button onClick={() => handleDeleteReward(idx)} className="text-red-400 text-xs">🗑️</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* خيار اختيار اللغة بداخل النافذة */}
-            <div className="bg-[#0d131d] border border-gray-800 p-3 rounded-2xl flex justify-between items-center text-xs font-bold">
-              <span className="text-gray-300">{t.langLabel}</span>
-              <div className="flex gap-1">
-                <button
-                  onClick={() => toggleLanguage('ar')}
-                  className={`px-3 py-1.5 rounded-xl transition ${
-                    lang === 'ar' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  العربية
-                </button>
-                <button
-                  onClick={() => toggleLanguage('en')}
-                  className={`px-3 py-1.5 rounded-xl transition ${
-                    lang === 'en' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  English
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 3. التبويبات الرئيسية */}
       <div className="grid grid-cols-3 gap-1.5 bg-[#161e2c] p-1.5 rounded-2xl border border-gray-700/80 mb-6 text-center text-xs md:text-sm font-bold">
@@ -827,13 +912,20 @@ export default function Home() {
                 const count = getHabitCount(habit.id);
 
                 return (
-                  <div key={habit.id}>
+                  <div 
+                    key={habit.id}
+                    draggable={isEditMode}
+                    onDragStart={() => handleDragStart(index)}
+                    onDragOver={handleDragOver}
+                    onDrop={() => handleDrop(index)}
+                    className={isEditMode ? 'cursor-grab active:cursor-grabbing' : ''}
+                  >
                     <HabitCard
                       habit={habit}
                       count={count}
                       isEditMode={isEditMode}
                       streakStatus={{ type: 'gold', count: 1 }}
-                      onCounterClick={() => setActiveHabitCounter(habit)}
+                      onCounterClick={() => openCounterModal(habit)}
                       onQuickToggle={(e) => toggleQuickComplete(e, habit)}
                       onEdit={() => {
                         setEditingHabit(habit);
@@ -853,6 +945,8 @@ export default function Home() {
                         const updatedHabits = habits.filter((h) => h.id !== habit.id);
                         saveData(updatedHabits, dailyData);
                       }}
+                      onMoveUp={index > 0 ? () => moveHabit(index, 'up') : undefined}
+                      onMoveDown={index < visibleHabits.length - 1 ? () => moveHabit(index, 'down') : undefined}
                     />
                   </div>
                 );
@@ -860,6 +954,171 @@ export default function Home() {
             )}
           </div>
         </>
+      )}
+
+      {/* قسم المهام (To-Do) مع إمكانية الإضافة والترحيل والتفاعل */}
+      {activeMainTab === 'todo' && (
+        <div className="space-y-4">
+          <form onSubmit={addTask} className="flex gap-2">
+            <input
+              type="text"
+              placeholder="إضافة مهمة جديدة..."
+              value={newTaskInput}
+              onChange={(e) => setNewTaskInput(e.target.value)}
+              className="flex-1 bg-[#161e2c] border border-gray-700 p-3 rounded-2xl text-sm outline-none text-white focus:border-blue-500"
+            />
+            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-2xl text-sm font-bold shadow-lg transition">
+              {t.add}
+            </button>
+          </form>
+
+          <div className="space-y-2">
+            {currentDayTasks.length === 0 ? (
+              <div className="text-center py-10 text-gray-500 text-xs bg-[#131a26] rounded-2xl border border-dashed border-gray-800">
+                لا توجد مهام مضافة لهذا اليوم.
+              </div>
+            ) : (
+              currentDayTasks.map((task) => (
+                <div key={task.id} className="bg-[#161e2c] border border-gray-800 p-3.5 rounded-2xl flex justify-between items-center text-sm font-bold">
+                  <span className={task.completed ? 'line-through text-gray-500' : 'text-white'}>{task.title}</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => toggleTask(task.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${task.completed ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-300'}`}
+                    >
+                      {task.completed ? 'مكتملة ✔️' : 'إنجاز'}
+                    </button>
+                    <button onClick={() => deleteTask(task.id)} className="text-red-400 p-1">🗑️</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* قسم الأهداف الممتدة */}
+      {activeMainTab === 'goals' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-2 bg-[#161e2c] p-1.5 rounded-2xl border border-gray-800 text-center text-xs font-bold">
+            <button
+              onClick={() => setGoalSubPeriod('week')}
+              className={`py-2 rounded-xl transition ${goalSubPeriod === 'week' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
+            >
+              {t.weekGoals}
+            </button>
+            <button
+              onClick={() => setGoalSubPeriod('month')}
+              className={`py-2 rounded-xl transition ${goalSubPeriod === 'month' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
+            >
+              {t.monthGoals}
+            </button>
+            <button
+              onClick={() => setGoalSubPeriod('year')}
+              className={`py-2 rounded-xl transition ${goalSubPeriod === 'year' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
+            >
+              {t.yearGoals}
+            </button>
+          </div>
+
+          <form onSubmit={addExtendedGoal} className="flex gap-2">
+            <input
+              type="text"
+              placeholder="إضافة هدف ممتد..."
+              value={newGoalInput}
+              onChange={(e) => setNewGoalInput(e.target.value)}
+              className="flex-1 bg-[#161e2c] border border-gray-700 p-3 rounded-2xl text-sm outline-none text-white focus:border-blue-500"
+            />
+            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-2xl text-sm font-bold shadow-lg transition">
+              {t.add}
+            </button>
+          </form>
+
+          <div className="space-y-2">
+            {filteredGoals.map((goal) => (
+              <div key={goal.id} className="bg-[#161e2c] border border-gray-800 p-3.5 rounded-2xl flex justify-between items-center text-sm font-bold">
+                <span className={goal.completed ? 'line-through text-gray-500' : 'text-white'}>{goal.title}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => toggleExtendedGoal(goal.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${goal.completed ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-300'}`}
+                  >
+                    {goal.completed ? 'تم ✔️' : 'تحقيق'}
+                  </button>
+                  <button onClick={() => deleteExtendedGoal(goal.id)} className="text-red-400 p-1">🗑️</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* نافذة العداد والسويتش للمؤقت ⏱️ */}
+      {activeHabitCounter && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-[#121824] border border-gray-800 rounded-3xl p-6 w-full max-w-sm space-y-5 text-white text-center shadow-2xl relative">
+            <button
+              onClick={() => {
+                setActiveHabitCounter(null);
+                setIsTimerRunning(false);
+              }}
+              className="absolute top-4 left-4 text-gray-400 hover:text-white text-lg font-bold"
+            >
+              ✕
+            </button>
+
+            <div className="bg-[#1c2536] p-4 rounded-2xl border border-gray-700/60 space-y-1 mt-4">
+              <h3 className="text-2xl font-black">{activeHabitCounter.title}</h3>
+              <p className="text-xs text-gray-400 font-bold">
+                المستهدف: {activeHabitCounter.targetCount} {activeHabitCounter.unit}
+              </p>
+            </div>
+
+            {/* زر السويتش الأصلي للمؤقت اليدوي */}
+            {activeHabitCounter.type === 'مؤقت' && (
+              <div className="flex justify-between items-center bg-[#0a0f18] p-2.5 rounded-2xl border border-gray-800">
+                <span className="text-xs font-bold text-gray-300">📊 عداد يدوي</span>
+                <button
+                  onClick={() => togglePreferredMode(timerMode === 'timer' ? 'counter' : 'timer')}
+                  className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 flex items-center ${
+                    timerMode === 'timer' ? 'bg-blue-600 justify-end' : 'bg-gray-700 justify-start'
+                  }`}
+                >
+                  <div className="w-4 h-4 rounded-full bg-white shadow-md transform transition-transform" />
+                </button>
+              </div>
+            )}
+
+            <div className="py-2 space-y-4">
+              <div className="flex justify-center items-center gap-5 my-2">
+                <button
+                  onClick={() => {
+                    const current = getHabitCount(activeHabitCounter.id);
+                    updateHabitCount(activeHabitCounter.id, current + 1);
+                  }}
+                  className="w-16 h-16 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-3xl shadow-lg active:scale-90 transition flex items-center justify-center border border-emerald-400/40"
+                >
+                  +
+                </button>
+
+                <div className="w-32 h-32 rounded-full border-4 border-blue-500 bg-blue-600/20 text-blue-400 flex flex-col items-center justify-center shadow-xl">
+                  <span className="text-4xl font-black">{getHabitCount(activeHabitCounter.id)}</span>
+                  <span className="text-[10px] text-gray-300 font-bold mt-1">الإنجاز الحالي</span>
+                </div>
+
+                <button
+                  onClick={() => {
+                    const current = getHabitCount(activeHabitCounter.id);
+                    updateHabitCount(activeHabitCounter.id, Math.max(0, current - 1));
+                  }}
+                  className="w-16 h-16 rounded-full bg-red-700 hover:bg-red-600 text-white font-black text-3xl shadow-lg active:scale-90 transition flex items-center justify-center border border-red-500/40"
+                >
+                  -
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* زر إضافة عادة */}
@@ -878,198 +1137,10 @@ export default function Home() {
             setSelectedDays([0, 1, 2, 3, 4, 5, 6]);
             setIsAddModalOpen(true);
           }}
-          className={`fixed bottom-16 w-14 h-14 bg-gradient-to-tr from-blue-600 to-indigo-500 text-white rounded-2xl shadow-2xl shadow-blue-500/40 text-3xl font-bold flex items-center justify-center border border-white/20 transition active:scale-95 z-40 ${lang === 'ar' ? 'right-8' : 'left-8'}`}
+          className={`fixed bottom-16 w-14 h-14 bg-gradient-to-tr from-blue-600 to-indigo-500 text-white rounded-2xl shadow-2xl text-3xl font-bold flex items-center justify-center border border-white/20 transition active:scale-95 z-40 ${lang === 'ar' ? 'right-8' : 'left-8'}`}
         >
           +
         </button>
-      )}
-
-      {/* نافذة إضافة أو تعديل عادة مع التحسينات المحدثة بالكامل */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl my-8">
-            <div className="flex justify-between items-center border-b border-gray-700/80 pb-3">
-              <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 text-sm">{t.cancel}</button>
-              <h3 className="text-lg font-bold">{editingHabit ? t.editHabit : t.addHabit}</h3>
-              <button onClick={handleSaveHabit} className="text-blue-400 font-bold text-sm">{t.save}</button>
-            </div>
-
-            <form onSubmit={handleSaveHabit} className="space-y-4">
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">{t.habitTitle}</label>
-                <input
-                  type="text"
-                  placeholder="مثلاً: قراءة قرآن أو ترك السهر"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full bg-[#0d131d] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm focus:border-blue-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-400 block mb-2">{t.category}</label>
-                <div className="grid grid-cols-2 gap-2 bg-[#0d131d] p-1.5 rounded-2xl border border-gray-700 text-center text-xs font-bold">
-                  <button
-                    type="button"
-                    onClick={() => setHabitCategory('إيجابية')}
-                    className={`py-2 rounded-xl transition ${
-                      habitCategory === 'إيجابية' ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-400'
-                    }`}
-                  >
-                    {t.positive}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setHabitCategory('سيئة')}
-                    className={`py-2 rounded-xl transition ${
-                      habitCategory === 'سيئة' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-400'
-                    }`}
-                  >
-                    {t.negative}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-400 block mb-2">{t.type}</label>
-                <div className="grid grid-cols-3 gap-2 bg-[#0d131d] p-1.5 rounded-2xl border border-gray-700 text-center text-xs font-bold">
-                  {(['مهمة', 'مؤقت', 'عداد'] as const).map((typeItem) => (
-                    <button
-                      key={typeItem}
-                      type="button"
-                      onClick={() => setHabitType(typeItem)}
-                      className={`py-2 rounded-xl transition ${
-                        habitType === typeItem ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400'
-                      }`}
-                    >
-                      {typeItem === 'مهمة' ? t.task : typeItem === 'مؤقت' ? t.timer : t.counter}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* تحسين 1: زر سويتش تفاعلي (Toggle Switch) لنطاق مرن */}
-              {habitType !== 'مهمة' && (
-                <div className="space-y-4 bg-[#0d131d] p-4 rounded-2xl border border-gray-700">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-gray-200">{t.useRange}</span>
-                    <button
-                      type="button"
-                      onClick={() => setUseRange(!useRange)}
-                      className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 flex items-center ${
-                        useRange ? 'bg-blue-600 justify-end' : 'bg-gray-700 justify-start'
-                      }`}
-                    >
-                      <div className="w-4 h-4 rounded-full bg-white shadow-md transform transition-transform" />
-                    </button>
-                  </div>
-
-                  {useRange ? (
-                    <div className="grid grid-cols-2 gap-3 pt-1">
-                      <div>
-                        <label className="text-[11px] text-gray-400 block mb-1">{t.minGoal}</label>
-                        <div className="flex items-center bg-[#161e2c] border border-gray-700 rounded-xl overflow-hidden p-1">
-                          <button
-                            type="button"
-                            onClick={() => setMinValInput(Math.max(1, minValInput - 1))}
-                            className="px-2.5 py-1 text-gray-300 font-bold hover:bg-gray-700 rounded-lg text-sm"
-                          >-</button>
-                          <input
-                            type="number"
-                            min="1"
-                            value={minValInput}
-                            onChange={(e) => setMinValInput(Number(e.target.value))}
-                            className="w-full bg-transparent text-center font-bold text-white text-sm outline-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setMinValInput(minValInput + 1)}
-                            className="px-2.5 py-1 text-gray-300 font-bold hover:bg-gray-700 rounded-lg text-sm"
-                          >+</button>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="text-[11px] text-gray-400 block mb-1">{t.maxGoal}</label>
-                        <div className="flex items-center bg-[#161e2c] border border-gray-700 rounded-xl overflow-hidden p-1">
-                          <button
-                            type="button"
-                            onClick={() => setMaxValInput(Math.max(minValInput + 1, maxValInput - 1))}
-                            className="px-2.5 py-1 text-gray-300 font-bold hover:bg-gray-700 rounded-lg text-sm"
-                          >-</button>
-                          <input
-                            type="number"
-                            min="1"
-                            value={maxValInput}
-                            onChange={(e) => setMaxValInput(Number(e.target.value))}
-                            className="w-full bg-transparent text-center font-bold text-white text-sm outline-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setMaxValInput(maxValInput + 1)}
-                            className="px-2.5 py-1 text-gray-300 font-bold hover:bg-gray-700 rounded-lg text-sm"
-                          >+</button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    /* تحسين 2: إعادة أزرار (+ و -) مع إمكانية تعديل الكتابة مباشرة */
-                    <div className="space-y-3 pt-1">
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-gray-400">{t.targetCount}</span>
-                        <div className="flex items-center gap-1 bg-[#161e2c] border border-gray-700 px-2 py-1 rounded-xl">
-                          <button
-                            type="button"
-                            onClick={() => setTargetCount(Math.max(1, targetCount - 1))}
-                            className="w-6 h-6 rounded bg-gray-800 text-gray-200 font-bold flex items-center justify-center hover:bg-gray-700"
-                          >-</button>
-                          <input
-                            type="number"
-                            min="1"
-                            value={targetCount}
-                            onChange={(e) => setTargetCount(Number(e.target.value))}
-                            className="w-12 text-center bg-transparent font-bold text-blue-400 text-sm outline-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setTargetCount(targetCount + 1)}
-                            className="w-6 h-6 rounded bg-gray-800 text-gray-200 font-bold flex items-center justify-center hover:bg-gray-700"
-                          >+</button>
-                        </div>
-                      </div>
-                      <input
-                        type="range"
-                        min="1"
-                        max="120"
-                        value={targetCount}
-                        onChange={(e) => setTargetCount(Number(e.target.value))}
-                        className="w-full accent-blue-500 cursor-pointer"
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div>
-                <label className="text-xs text-gray-400 block mb-2">{t.color}</label>
-                <div className="flex gap-3 justify-center">
-                  {COLOR_OPTIONS.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setSelectedColor(color)}
-                      style={{ backgroundColor: color }}
-                      className={`w-9 h-9 rounded-2xl border-2 transition ${
-                        selectedColor === color ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-80'
-                      }`}
-                    />
-                  ))}
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
       )}
 
       {/* شريط التنقل السفلي الثابت */}
