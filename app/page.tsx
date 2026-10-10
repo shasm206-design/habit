@@ -57,11 +57,11 @@ const TRANSLATIONS = {
     task: 'مهمة',
     timer: 'مؤقت',
     counter: 'عداد',
-    useRange: 'تفعيل النطاق الزمني / العددي المرن (أدنى وأقصى)',
-    minGoal: 'الحد الأدنى للإنهاء (%100 إنجاز)',
-    maxGoal: 'الحد الأقصى (بونص إضافي 👑)',
-    targetCount: 'العدد المستهدف',
-    color: 'لون العادة',
+    useRange: '⚙️ تفعيل نطاق مرن (حد أدنى وأقصى)',
+    minGoal: 'الحد الأدنى (%100 إنجاز)',
+    maxGoal: 'الحد الأقصى (بونص 👑)',
+    targetCount: 'تحديد العدد المستهدف',
+    color: 'لون أشكال العادة',
     save: 'حفظ',
     cancel: 'إلغاء',
     weekGoals: '📅 أهداف الأسبوع',
@@ -74,11 +74,12 @@ const TRANSLATIONS = {
     guestAccount: 'حساب زائر محلي (غير مسجل) 📱',
     email: 'البريد الإلكتروني:',
     sessionDate: 'تاريخ الجلسة:',
-    minReached: '🎉 وصلت للحد الأدنى! أخذت %100 إنجاز بنجاح. يمكنك التوقف أو كسب بونص استثنائي!',
+    minReached: '🎉 رائع! حققت الحد الأدنى (%100 إنجاز). يمكنك الاكتفاء أو المواصلة للبونص 👑',
     startTimer: '▶️ بدء المؤقت',
     pauseTimer: '⏸️ إيقاف مؤقت',
     resetTimer: '↺ إعادة',
-    overtime: 'وقت إضافي ⏱️'
+    overtime: 'وقت إضافي ⏱️',
+    langLabel: 'لغة الواجهة / Language:'
   },
   en: {
     welcome: 'Welcome,',
@@ -103,11 +104,11 @@ const TRANSLATIONS = {
     task: 'Task',
     timer: 'Timer',
     counter: 'Counter',
-    useRange: 'Enable Flexible Range (Min & Max)',
+    useRange: '⚙️ Enable Flexible Range (Min & Max)',
     minGoal: 'Min Goal (100% Complete)',
     maxGoal: 'Max Goal (Bonus 👑)',
-    targetCount: 'Target Count',
-    color: 'Habit Color',
+    targetCount: 'Set Target Count',
+    color: 'Habit Shapes Color',
     save: 'Save',
     cancel: 'Cancel',
     weekGoals: '📅 Weekly Goals',
@@ -120,11 +121,12 @@ const TRANSLATIONS = {
     guestAccount: 'Local Guest Account 📱',
     email: 'Email:',
     sessionDate: 'Session Date:',
-    minReached: '🎉 Min goal reached! You earned 100% completion. Stop or push for bonus!',
+    minReached: '🎉 Awesome! Min goal reached (100%). Stop here or keep going for bonus 👑',
     startTimer: '▶️ Start Timer',
     pauseTimer: '⏸️ Pause Timer',
     resetTimer: '↺ Reset',
-    overtime: 'Overtime ⏱️'
+    overtime: 'Overtime ⏱️',
+    langLabel: 'Interface Language:'
   }
 };
 
@@ -156,7 +158,7 @@ export default function Home() {
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [activeHabitCounter, setActiveHabitCounter] = useState<Habit | null>(null);
 
-  // Timer Range States
+  // Timer States
   const [timerMode, setTimerMode] = useState<'timer' | 'counter'>('counter');
   const [timerSecondsLeft, setTimerSecondsLeft] = useState<number>(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
@@ -170,7 +172,7 @@ export default function Home() {
   const [rememberEmail, setRememberEmail] = useState(true);
   const [authError, setAuthError] = useState('');
 
-  // Habit Form Range State
+  // Form State
   const [title, setTitle] = useState('');
   const [habitType, setHabitType] = useState<'عداد' | 'مؤقت' | 'مهمة'>('عداد');
   const [habitCategory, setHabitCategory] = useState<'إيجابية' | 'سيئة'>('إيجابية');
@@ -243,13 +245,12 @@ export default function Home() {
     return () => unsubscribeAuth();
   }, []);
 
-  const toggleLanguage = () => {
-    const newLang = lang === 'ar' ? 'en' : 'ar';
+  const toggleLanguage = (newLang: 'ar' | 'en') => {
     setLang(newLang);
     localStorage.setItem('habit_tracker_lang', newLang);
   };
 
-  // إدارة المؤقت المرن
+  // إدارة المؤقت التفاعلي
   useEffect(() => {
     if (!activeHabitCounter || activeHabitCounter.type !== 'مؤقت') return;
 
@@ -321,13 +322,6 @@ export default function Home() {
     const endTime = Date.now() + duration * 1000;
     localStorage.setItem(`timer_end_${activeHabitCounter.id}`, endTime.toString());
     localStorage.removeItem(`timer_paused_${activeHabitCounter.id}`);
-    setIsTimerRunning(true);
-    setIsTimerFinished(false);
-  };
-
-  const startOvertime = () => {
-    setIsOvertime(true);
-    setTimerSecondsLeft(0);
     setIsTimerRunning(true);
     setIsTimerFinished(false);
   };
@@ -660,7 +654,6 @@ export default function Home() {
     saveData(habits, dailyData, tasks, displayName, updated);
   };
 
-  // احتساب الإكمال العادل (%100 للأدنى + بونص للأقصى)
   const calculateHabitScore = (habit: Habit, count: number) => {
     if (habit.category === 'سيئة') return count === 0 ? 1 : 0;
     
@@ -671,7 +664,7 @@ export default function Home() {
       return count / minThresh;
     } else {
       const bonusPct = maxThresh > minThresh ? ((count - minThresh) / (maxThresh - minThresh)) * 0.2 : 0;
-      return 1.0 + bonusPct; 
+      return 1.0 + bonusPct;
     }
   };
 
@@ -737,12 +730,13 @@ export default function Home() {
 
   const currentTimerDone = activeHabitCounter ? getHabitCount(activeHabitCounter.id) : 0;
   const minValThresh = activeHabitCounter?.minMinutes || activeHabitCounter?.targetCount || 1;
+  const maxValThresh = activeHabitCounter?.maxMinutes || activeHabitCounter?.targetCount || minValThresh;
   const isMinReached = currentTimerDone >= minValThresh;
 
   return (
     <div className={`max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 select-none ${lang === 'ar' ? 'dir-rtl text-right' : 'dir-ltr text-left'}`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       
-      {/* 1. الترويسة الرئيسية */}
+      {/* 1. الترويسة الرئيسية + تفاصيل الحساب */}
       <div className="flex justify-between items-center mb-6 pt-2">
         <div className="flex items-center gap-3">
           <button 
@@ -770,14 +764,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={toggleLanguage}
-            className="text-xs bg-[#161e2c] border border-gray-700 hover:border-blue-500 text-gray-200 px-3 py-2 rounded-xl font-black transition shadow-md"
-          >
-            🌐 {lang === 'ar' ? 'EN' : 'عربي'}
-          </button>
-
+        <div>
           {user ? (
             <button onClick={() => signOut(auth)} className="text-xs bg-red-500/20 text-red-400 px-3.5 py-2 rounded-xl font-bold border border-red-500/30 hover:bg-red-500/30 transition">
               {t.signOut}
@@ -789,6 +776,89 @@ export default function Home() {
           )}
         </div>
       </div>
+
+      {/* نافذة تفاصيل الحساب مع زر تبديل اللغة المخصص بداخلها 👤 */}
+      {isProfileModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-sm space-y-5 text-white shadow-2xl relative text-center">
+            <button 
+              onClick={() => setIsProfileModalOpen(false)} 
+              className="absolute top-4 left-4 text-gray-400 hover:text-white text-lg font-bold"
+            >
+              ✕
+            </button>
+
+            <div className="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-500 border-2 border-blue-400/50 flex items-center justify-center text-4xl shadow-xl shadow-blue-500/30 mt-2">
+              👤
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-2xl font-black">{displayName}</h3>
+              <p className="text-xs text-blue-400 font-bold">
+                {user ? t.loggedInSync : t.guestAccount}
+              </p>
+            </div>
+
+            <div className="bg-[#0d131d] border border-gray-800 rounded-2xl p-4 text-start space-y-3 text-xs">
+              <div>
+                <span className="text-gray-400 block mb-0.5">{t.email}</span>
+                <span className="font-bold text-white text-sm dir-ltr block">
+                  {user?.email || (email ? email : 'N/A')}
+                </span>
+              </div>
+              <div className="border-t border-gray-800 pt-2">
+                <span className="text-gray-400 block mb-0.5">{t.sessionDate}</span>
+                <span className="font-bold text-gray-300">{selectedDate}</span>
+              </div>
+            </div>
+
+            {/* خيار اختيار اللغة بداخل النافذة */}
+            <div className="bg-[#0d131d] border border-gray-800 p-3 rounded-2xl flex justify-between items-center text-xs font-bold">
+              <span className="text-gray-300">{t.langLabel}</span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => toggleLanguage('ar')}
+                  className={`px-3 py-1.5 rounded-xl transition ${
+                    lang === 'ar' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  العربية
+                </button>
+                <button
+                  onClick={() => toggleLanguage('en')}
+                  className={`px-3 py-1.5 rounded-xl transition ${
+                    lang === 'en' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  English
+                </button>
+              </div>
+            </div>
+
+            {user ? (
+              <button
+                onClick={() => {
+                  signOut(auth);
+                  setIsProfileModalOpen(false);
+                }}
+                className="w-full py-3 bg-red-600/20 hover:bg-red-600/30 text-red-400 font-bold text-xs rounded-xl border border-red-500/40 transition"
+              >
+                {t.signOut} 🚪
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setIsProfileModalOpen(false);
+                  setIsAuthModalOpen(true);
+                }}
+                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 font-bold text-xs rounded-xl shadow-lg shadow-blue-600/30 transition"
+              >
+                {t.signIn}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 2. شريط النسبة المئوية */}
       <div className={`bg-gradient-to-r ${status.bgGradient} ${status.textColor} p-4.5 rounded-3xl flex justify-between items-center px-6 shadow-xl mb-6 border border-white/20 transition-all duration-300`}>
@@ -909,149 +979,10 @@ export default function Home() {
         </>
       )}
 
-      {/* قسم قائمة المهام */}
-      {activeMainTab === 'todo' && (
-        <div className="space-y-6">
-          <form onSubmit={addTask} className="flex gap-2">
-            <input
-              type="text"
-              placeholder="إضافة مهمة جديدة اليوم..."
-              value={newTaskInput}
-              onChange={(e) => setNewTaskInput(e.target.value)}
-              className="flex-1 bg-[#161e2c] border border-gray-700/80 p-3.5 rounded-2xl outline-none text-white text-sm focus:border-blue-500"
-            />
-            <button
-              type="submit"
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3.5 rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition"
-            >
-              {t.add}
-            </button>
-          </form>
-
-          <div className="space-y-3">
-            {currentDayTasks.map((task) => (
-              <div
-                key={task.id}
-                className={`p-4 rounded-2xl flex justify-between items-center border transition ${
-                  task.completed
-                    ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-200 line-through'
-                    : 'bg-[#161e2c] border-gray-700/80 text-white'
-                }`}
-              >
-                <div
-                  onClick={() => toggleTask(task.id)}
-                  className="flex items-center gap-3 cursor-pointer flex-1"
-                >
-                  <div className={`w-6 h-6 rounded-lg border flex items-center justify-center font-bold text-xs ${
-                    task.completed ? 'bg-emerald-500 border-emerald-400 text-white' : 'border-gray-600'
-                  }`}>
-                    {task.completed && '✓'}
-                  </div>
-                  <span className="text-sm font-bold">{task.title}</span>
-                </div>
-                <button
-                  onClick={() => deleteTask(task.id)}
-                  className="text-gray-500 hover:text-red-400 p-1 text-sm font-bold transition"
-                >
-                  🗑️
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* قسم أهدافي الممتدة 🏆 */}
-      {activeMainTab === 'goals' && (
-        <div className="space-y-6">
-          <div className="flex justify-center gap-2 bg-[#161e2c] p-2 rounded-2xl border border-gray-800 text-xs font-bold">
-            <button
-              onClick={() => setGoalSubPeriod('week')}
-              className={`flex-1 py-2 rounded-xl transition ${
-                goalSubPeriod === 'week' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              {t.weekGoals}
-            </button>
-            <button
-              onClick={() => setGoalSubPeriod('month')}
-              className={`flex-1 py-2 rounded-xl transition ${
-                goalSubPeriod === 'month' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              {t.monthGoals}
-            </button>
-            <button
-              onClick={() => setGoalSubPeriod('year')}
-              className={`flex-1 py-2 rounded-xl transition ${
-                goalSubPeriod === 'year' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              {t.yearGoals}
-            </button>
-          </div>
-
-          <div className="bg-[#161e2c] border border-gray-800 p-4 rounded-2xl flex justify-between items-center">
-            <div>
-              <span className="text-xs text-gray-400 block font-medium">{t.goalsRatio}</span>
-              <span className="text-lg font-black text-blue-400">{completedGoalsCount} / {filteredGoals.length} {t.goalsCompleted}</span>
-            </div>
-            <div className="text-2xl font-black text-emerald-400">%{goalsPct}</div>
-          </div>
-
-          <form onSubmit={addExtendedGoal} className="flex gap-2">
-            <input
-              type="text"
-              placeholder="..."
-              value={newGoalInput}
-              onChange={(e) => setNewGoalInput(e.target.value)}
-              className="flex-1 bg-[#161e2c] border border-gray-700/80 p-3.5 rounded-2xl outline-none text-white text-sm focus:border-blue-500"
-            />
-            <button
-              type="submit"
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3.5 rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition"
-            >
-              {t.add}
-            </button>
-          </form>
-
-          <div className="space-y-3">
-            {filteredGoals.map((goal) => (
-              <div
-                key={goal.id}
-                className={`p-4 rounded-2xl flex justify-between items-center border transition ${
-                  goal.completed
-                    ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-200 line-through'
-                    : 'bg-[#161e2c] border-gray-700/80 text-white'
-                }`}
-              >
-                <div
-                  onClick={() => toggleExtendedGoal(goal.id)}
-                  className="flex items-center gap-3 cursor-pointer flex-1"
-                >
-                  <div className={`w-6 h-6 rounded-lg border flex items-center justify-center font-bold text-xs ${
-                    goal.completed ? 'bg-emerald-500 border-emerald-400 text-white' : 'border-gray-600'
-                  }`}>
-                    {goal.completed && '✓'}
-                  </div>
-                  <span className="text-sm font-bold">{goal.title}</span>
-                </div>
-                <button
-                  onClick={() => deleteExtendedGoal(goal.id)}
-                  className="text-gray-500 hover:text-red-400 p-1 text-sm font-bold transition"
-                >
-                  🗑️
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* نافذة العداد والتركيز التفاعلي */}
+      {/* نافذة العداد والمؤقت مع العرض المبتكر للحد الأدنى والأقصى */}
       {activeHabitCounter && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-[#121824] border border-gray-800 rounded-3xl p-6 w-full max-w-sm space-y-6 text-white text-center shadow-2xl relative">
+          <div className="bg-[#121824] border border-gray-800 rounded-3xl p-6 w-full max-w-sm space-y-5 text-white text-center shadow-2xl relative">
             <button
               onClick={() => {
                 setActiveHabitCounter(null);
@@ -1064,54 +995,131 @@ export default function Home() {
 
             <div className="bg-[#1c2536] p-4 rounded-2xl border border-gray-700/60 space-y-1 mt-4">
               <h3 className="text-2xl font-black">{activeHabitCounter.title}</h3>
-              <p className="text-xs text-gray-400 font-bold">
-                {activeHabitCounter.minMinutes && activeHabitCounter.maxMinutes ? (
-                  <span>النطاق المرن: <span className="text-blue-400 font-mono">{activeHabitCounter.minMinutes} أدنى (100%) - {activeHabitCounter.maxMinutes} أقصى (بونص)</span></span>
-                ) : (
-                  <span>الإنجاز: <span className="text-blue-400">{getHabitCount(activeHabitCounter.id)}</span> من {activeHabitCounter.targetCount} {activeHabitCounter.unit}</span>
-                )}
-              </p>
-            </div>
-
-            {/* العداد/المؤقت الداخلي */}
-            <div className="py-2 space-y-4">
-              <div className="flex justify-center items-center gap-5 my-2">
-                <button
-                  onClick={() => {
-                    const current = getHabitCount(activeHabitCounter.id);
-                    updateHabitCount(activeHabitCounter.id, current + 1);
-                  }}
-                  className="w-16 h-16 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-3xl shadow-lg active:scale-90 transition flex items-center justify-center"
-                >
-                  +
-                </button>
-                <div className={`w-36 h-36 rounded-full border-4 flex flex-col items-center justify-center shadow-2xl transition-all duration-500 ${
-                  isMinReached ? 'bg-emerald-600/20 border-emerald-500 text-emerald-300' : 'bg-blue-600/20 border-blue-500 text-blue-400'
-                }`}>
-                  <span className="text-5xl font-black">
-                    {getHabitCount(activeHabitCounter.id)}
+              {activeHabitCounter.minMinutes && activeHabitCounter.maxMinutes ? (
+                <div className="flex justify-center gap-2 text-xs font-bold mt-1">
+                  <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded-lg">
+                    الأدنى: {activeHabitCounter.minMinutes}
                   </span>
-                  <span className="text-[10px] font-bold mt-1 text-gray-300">
-                    {isMinReached ? 'مكتمل %100 ✔️' : `الهدف: ${minValThresh}`}
+                  <span className="bg-amber-500/10 border border-amber-500/30 text-amber-300 px-2 py-0.5 rounded-lg">
+                    الأقصى: {activeHabitCounter.maxMinutes}
                   </span>
                 </div>
-                <button
-                  onClick={() => {
-                    const current = getHabitCount(activeHabitCounter.id);
-                    updateHabitCount(activeHabitCounter.id, Math.max(0, current - 1));
-                  }}
-                  className="w-16 h-16 rounded-full bg-red-700 hover:bg-red-600 text-white font-black text-3xl shadow-lg active:scale-90 transition flex items-center justify-center"
-                >
-                  -
-                </button>
-              </div>
-
-              {isMinReached && (
-                <div className="p-3 bg-emerald-500/20 text-emerald-300 rounded-2xl text-xs font-bold border border-emerald-500/40">
-                  {t.minReached}
-                </div>
+              ) : (
+                <p className="text-xs text-gray-400 font-bold">
+                  المستهدف: {activeHabitCounter.targetCount} {activeHabitCounter.unit}
+                </p>
               )}
             </div>
+
+            {/* مفتاح التبديل للمؤقت التنازلي والعداد اليدوي */}
+            {activeHabitCounter.type === 'مؤقت' && (
+              <div className="flex justify-between items-center bg-[#0a0f18] p-2.5 rounded-2xl border border-gray-800">
+                <span className="text-xs font-bold text-gray-300">
+                  {timerMode === 'timer' ? '⏱️ مؤقت النطاق الحي' : '📊 عداد يدوي'}
+                </span>
+                <button
+                  onClick={() => togglePreferredMode(timerMode === 'timer' ? 'counter' : 'timer')}
+                  className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 flex items-center ${
+                    timerMode === 'timer' ? 'bg-blue-600 justify-end' : 'bg-gray-700 justify-start'
+                  }`}
+                >
+                  <div className="w-4 h-4 rounded-full bg-white shadow-md transform transition-transform" />
+                </button>
+              </div>
+            )}
+
+            {/* تصميم العداد والدائرة التفاعلية المبتكرة */}
+            {(activeHabitCounter.type !== 'مؤقت' || timerMode === 'counter') ? (
+              <div className="py-2 space-y-4">
+                <div className="flex justify-center items-center gap-5 my-2">
+                  <button
+                    onClick={() => {
+                      const current = getHabitCount(activeHabitCounter.id);
+                      updateHabitCount(activeHabitCounter.id, current + 1);
+                    }}
+                    className="w-16 h-16 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-3xl shadow-lg active:scale-90 transition flex items-center justify-center border border-emerald-400/40"
+                  >
+                    +
+                  </button>
+
+                  {/* الدائرة التفاعلية المضيئة عند الوصول للحد الأدنى */}
+                  <div className={`w-36 h-36 rounded-full border-4 flex flex-col items-center justify-center shadow-2xl transition-all duration-500 ${
+                    isMinReached 
+                      ? 'bg-emerald-600/20 border-emerald-400 text-emerald-300 shadow-emerald-500/20 scale-105' 
+                      : 'bg-blue-600/20 border-blue-500 text-blue-400'
+                  }`}>
+                    <span className="text-5xl font-black">
+                      {currentTimerDone}
+                    </span>
+                    <span className="text-[10px] font-bold mt-1 text-gray-300">
+                      {isMinReached ? 'مكتمل %100 ✔️' : `الأدنى: ${minValThresh}`}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      const current = getHabitCount(activeHabitCounter.id);
+                      updateHabitCount(activeHabitCounter.id, Math.max(0, current - 1));
+                    }}
+                    className="w-16 h-16 rounded-full bg-red-700 hover:bg-red-600 text-white font-black text-3xl shadow-lg active:scale-90 transition flex items-center justify-center border border-red-500/40"
+                  >
+                    -
+                  </button>
+                </div>
+
+                {isMinReached && (
+                  <div className="p-3 bg-emerald-500/20 text-emerald-300 rounded-2xl text-xs font-bold border border-emerald-500/40">
+                    {t.minReached}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* واجهة المؤقت التنازلي التفاعلي المبتكر */
+              <div className="space-y-4 py-2">
+                <div className={`w-40 h-40 rounded-full border-4 mx-auto flex flex-col items-center justify-center shadow-inner relative transition-all duration-500 ${
+                  isMinReached 
+                    ? 'border-emerald-400 bg-emerald-600/20 text-emerald-300 shadow-emerald-500/30 scale-105' 
+                    : 'border-blue-500/40 bg-blue-600/10 text-blue-400'
+                }`}>
+                  <span className="text-3xl font-black font-mono tracking-wider">
+                    {formatTimerString(timerSecondsLeft)}
+                  </span>
+                  <span className="text-[10px] text-gray-300 mt-1 font-bold">
+                    {isOvertime ? t.overtime : `الأقصى: ${maxValThresh} دقيقة`}
+                  </span>
+                </div>
+
+                {isMinReached && (
+                  <div className="p-3 bg-emerald-500/20 text-emerald-300 rounded-2xl text-xs font-bold border border-emerald-500/40">
+                    {t.minReached}
+                  </div>
+                )}
+
+                <div className="flex gap-2 justify-center">
+                  {!isTimerRunning ? (
+                    <button
+                      onClick={startTimer}
+                      className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-2xl shadow-lg active:scale-95 transition"
+                    >
+                      {t.startTimer}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={pauseTimer}
+                      className="flex-1 py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold text-sm rounded-2xl shadow-lg active:scale-95 transition"
+                    >
+                      {t.pauseTimer}
+                    </button>
+                  )}
+                  <button
+                    onClick={resetTimer}
+                    className="px-4 py-3 bg-gray-800 text-gray-300 hover:text-white rounded-2xl font-bold text-xs border border-gray-700 active:scale-95 transition"
+                  >
+                    {t.resetTimer}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1138,7 +1146,7 @@ export default function Home() {
         </button>
       )}
 
-      {/* نافذة إضافة أو تعديل عادة مع تفعيل النطاق المرن (أدنى وأقصى) */}
+      {/* نافذة إضافة أو تعديل عادة بنفس الهيكل السابق مع مفتاح خيار النطاق المرن */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl my-8">
@@ -1153,6 +1161,7 @@ export default function Home() {
                 <label className="text-xs text-gray-400 block mb-1">{t.habitTitle}</label>
                 <input
                   type="text"
+                  placeholder="مثلاً: قراءة قرآن أو ترك السهر"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full bg-[#0d131d] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm focus:border-blue-500"
@@ -1202,7 +1211,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* تفعيل النطاق المرن (أدنى وأقصى) */}
+              {/* خيار مفتاح تفعيل النطاق المرن تحت نوع العادة */}
               {habitType !== 'مهمة' && (
                 <div className="space-y-3 bg-[#0d131d] p-4 rounded-2xl border border-gray-700">
                   <div className="flex items-center gap-2">
