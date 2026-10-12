@@ -36,17 +36,32 @@ export default function HistoryPage() {
     return `${year}-${month}-${day}`;
   };
 
+  // التحقق هل اليوم المختار مسموح بتعديله (اليوم، أمس، وقبل أمس فقط)
+  const isDateEditable = (dateStr: string) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const targetDate = new Date(dateStr);
+    targetDate.setHours(0, 0, 0, 0);
+
+    const diffTime = today.getTime() - targetDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
+
+    // مسموح للتعديل إذا كان اليوم (0)، أمس (1)، أو قبل أمس (2)
+    return diffDays >= 0 && diffDays <= 2;
+  };
+
   useEffect(() => {
     const todayStr = getLocalDateString();
     setSelectedDate(todayStr);
 
     const list: string[] = [];
-    for (let i = -7; i <= 7; i++) {
+    for (let i = -14; i <= 0; i++) {
       const d = new Date();
       d.setDate(d.getDate() + i);
       list.push(getLocalDateString(d));
     }
-    setDatesList(list);
+    setDatesList(list.reverse());
 
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -110,6 +125,7 @@ export default function HistoryPage() {
   };
 
   const handleNoteChange = (text: string) => {
+    if (!isDateEditable(selectedDate)) return;
     setDayNoteInput(text);
     const updatedNotes = { ...notes, [selectedDate]: text };
     saveNotesData(updatedNotes);
@@ -120,6 +136,7 @@ export default function HistoryPage() {
   const getHabitCount = (habitId: string) => currentDayProgress[habitId] || 0;
 
   const updateHabitCount = (habitId: string, delta: number) => {
+    if (!isDateEditable(selectedDate)) return;
     const habit = habits.find((h) => h.id === habitId);
     if (!habit) return;
     const current = getHabitCount(habitId);
@@ -152,11 +169,9 @@ export default function HistoryPage() {
     return Math.round((totalScore / dayHabits.length) * 100);
   };
 
-  const visibleHabits = habits.filter((h) => 
-    !h.repeatDays || h.repeatDays.includes(getDayOfWeekIndex(selectedDate))
-  );
-
+  const visibleHabits = habits;
   const currentDayTasks = tasks[selectedDate] || [];
+  const editable = isDateEditable(selectedDate);
 
   return (
     <div className="max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 dir-rtl text-right select-none" dir="rtl">
@@ -213,10 +228,16 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* تنبيه الاستدراك والتعديل المباشر */}
-      <div className="p-3 bg-blue-500/10 border border-blue-500/30 text-blue-300 rounded-2xl text-xs font-bold text-center mb-6">
-        💡 يمكنك التعديل والاستدراك على إنجازات ({selectedDate}) وتحديثها مباشرهً.
-      </div>
+      {/* تنبيه حالة التعديل والأحكام */}
+      {editable ? (
+        <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-2xl text-xs font-bold text-center mb-6">
+          🟢 يُسمح بالاستدراك والتعديل المباشر على يوم ({selectedDate}).
+        </div>
+      ) : (
+        <div className="p-3 bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-2xl text-xs font-bold text-center mb-6">
+          🔒 هذا اليوم مقفول للأرشيف والعرض فقط (التعديل متاح لليوم وأمس وقبل أمس فقط).
+        </div>
+      )}
 
       {/* 3. قسم ملاحظات اليوم */}
       <div className="bg-[#161e2c] border border-gray-700/80 rounded-3xl p-4.5 mb-6 space-y-2 shadow-xl">
@@ -227,9 +248,12 @@ export default function HistoryPage() {
         <textarea
           value={dayNoteInput}
           onChange={(e) => handleNoteChange(e.target.value)}
-          placeholder="اكتب أي ملاحظة، تدوينة، أو تذكير خاص بهذا اليوم..."
+          disabled={!editable}
+          placeholder={editable ? "اكتب أي ملاحظة أو تذكير لهذا اليوم..." : "لا يمكن إضافة ملاحظات للأيام القديمة المقفولة."}
           rows={3}
-          className="w-full bg-[#0d131d] border border-gray-800 rounded-2xl p-3 text-xs text-white placeholder-gray-500 outline-none focus:border-blue-500/60 resize-none transition"
+          className={`w-full bg-[#0d131d] border border-gray-800 rounded-2xl p-3 text-xs text-white placeholder-gray-500 outline-none resize-none transition ${
+            !editable ? 'opacity-60 cursor-not-allowed' : 'focus:border-blue-500/60'
+          }`}
         />
       </div>
 
@@ -258,22 +282,28 @@ export default function HistoryPage() {
                     : 'bg-[#161e2c] border-gray-800 text-white'
                 }`}
               >
-                {/* الأزرار اليدوية للتعديل المباشر */}
-                <div className="flex items-center gap-2 bg-[#0d131d] p-1 rounded-2xl border border-gray-800">
-                  <button
-                    onClick={() => updateHabitCount(habit.id, 1)}
-                    className="w-8 h-8 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-black text-sm active:scale-90 transition flex items-center justify-center"
-                  >
-                    +
-                  </button>
-                  <span className="font-extrabold text-xs px-2 text-blue-400">{count}</span>
-                  <button
-                    onClick={() => updateHabitCount(habit.id, -1)}
-                    className="w-8 h-8 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-black text-sm active:scale-90 transition flex items-center justify-center"
-                  >
-                    -
-                  </button>
-                </div>
+                {/* الأزرار اليدوية للتعديل المباشر في حال سماح الفترة الزمنية */}
+                {editable ? (
+                  <div className="flex items-center gap-2 bg-[#0d131d] p-1 rounded-2xl border border-gray-800">
+                    <button
+                      onClick={() => updateHabitCount(habit.id, 1)}
+                      className="w-8 h-8 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-black text-sm active:scale-90 transition flex items-center justify-center"
+                    >
+                      +
+                    </button>
+                    <span className="font-extrabold text-xs px-2 text-blue-400">{count}</span>
+                    <button
+                      onClick={() => updateHabitCount(habit.id, -1)}
+                      className="w-8 h-8 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-black text-sm active:scale-90 transition flex items-center justify-center"
+                    >
+                      -
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-[#0d131d] px-3 py-1.5 rounded-xl border border-gray-800 text-xs font-bold text-gray-400">
+                    المسجل: {count}
+                  </div>
+                )}
 
                 {/* عنوان العادة والمستهدف */}
                 <div className="flex items-center gap-3">
@@ -295,7 +325,7 @@ export default function HistoryPage() {
         )}
       </div>
 
-      {/* 5. الميزة الجديدة: قسم المهام المنجزة بأسفل اليوم (To-Do Archive) 📝 */}
+      {/* 5. قسم المهام المنجزة بأسفل اليوم (To-Do Archive) */}
       <div className="pt-4 border-t border-gray-800/80 space-y-4">
         <h2 className="text-base font-extrabold text-gray-300">
           المهام المنجزة بأسفل اليوم (To-Do Archive)
