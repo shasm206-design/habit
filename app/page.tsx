@@ -81,6 +81,10 @@ const TRANSLATIONS = {
     addTaskPlaceholder: 'إضافة مهمة جديدة اليوم...',
     taskCompleted: 'مكتملة ✔️',
     taskIncomplete: 'إنجاز',
+    targetLabel: 'المستهدف:',
+    minLabel: 'الأدنى:',
+    currentProgressLabel: 'الإنجاز الحالي',
+    overtimeActive: '⚡ الوقت الإضافي شغال',
   },
   en: {
     welcome: 'Welcome,',
@@ -127,6 +131,10 @@ const TRANSLATIONS = {
     addTaskPlaceholder: 'Add a new task today...',
     taskCompleted: 'Done ✔️',
     taskIncomplete: 'Complete',
+    targetLabel: 'Target:',
+    minLabel: 'Min:',
+    currentProgressLabel: 'Current Progress',
+    overtimeActive: '⚡ Overtime Active',
   }
 };
 
@@ -145,7 +153,6 @@ export default function Home() {
   const [activeMainTab, setActiveMainTab] = useState<'habits' | 'todo'>('habits');
   
   const [isEditMode, setIsEditMode] = useState(false);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // Modals & Timers
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -158,7 +165,6 @@ export default function Home() {
   const [timerMode, setTimerMode] = useState<'timer' | 'counter'>('counter');
   const [timerSecondsLeft, setTimerSecondsLeft] = useState<number>(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [isTimerFinished, setIsTimerFinished] = useState(false);
   const [isOvertime, setIsOvertime] = useState(false);
 
   // Habit Form State
@@ -220,6 +226,94 @@ export default function Home() {
 
     return () => unsubscribeAuth();
   }, []);
+
+  // إدارة المؤقت والتوقيت الإضافي
+  useEffect(() => {
+    if (!activeHabitCounter || activeHabitCounter.type !== 'مؤقت') return;
+
+    const habitId = activeHabitCounter.id;
+    const storedEndTime = localStorage.getItem(`timer_end_${habitId}`);
+    const storedPausedLeft = localStorage.getItem(`timer_paused_${habitId}`);
+    const maxVal = activeHabitCounter.maxMinutes || activeHabitCounter.targetCount || 30;
+
+    if (storedEndTime) {
+      const endTime = parseInt(storedEndTime, 10);
+      const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+      setTimerSecondsLeft(remaining);
+      setIsTimerRunning(remaining > 0);
+    } else if (storedPausedLeft) {
+      setTimerSecondsLeft(parseInt(storedPausedLeft, 10));
+      setIsTimerRunning(false);
+    } else {
+      const currentDoneMinutes = getHabitCount(habitId);
+      const remainingMinutes = Math.max(0, maxVal - currentDoneMinutes);
+      setTimerSecondsLeft(remainingMinutes * 60);
+      setIsTimerRunning(false);
+      setIsOvertime(false);
+    }
+  }, [activeHabitCounter]);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isTimerRunning && activeHabitCounter && activeHabitCounter.type === 'مؤقت') {
+      timer = setInterval(() => {
+        if (isOvertime) {
+          setTimerSecondsLeft((prev) => {
+            const next = prev + 1;
+            if (next % 60 === 0) {
+              const currentMins = getHabitCount(activeHabitCounter.id);
+              updateHabitCount(activeHabitCounter.id, currentMins + 1);
+            }
+            return next;
+          });
+        } else {
+          const storedEndTime = localStorage.getItem(`timer_end_${activeHabitCounter.id}`);
+          if (storedEndTime) {
+            const remaining = Math.max(0, Math.floor((parseInt(storedEndTime, 10) - Date.now()) / 1000));
+            setTimerSecondsLeft(remaining);
+
+            if (remaining <= 0) {
+              setIsTimerRunning(false);
+              localStorage.removeItem(`timer_end_${activeHabitCounter.id}`);
+              localStorage.removeItem(`timer_paused_${activeHabitCounter.id}`);
+              const maxVal = activeHabitCounter.maxMinutes || activeHabitCounter.targetCount || 30;
+              updateHabitCount(activeHabitCounter.id, maxVal);
+            }
+          }
+        }
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [isTimerRunning, isOvertime, activeHabitCounter]);
+
+  const startTimer = () => {
+    if (!activeHabitCounter) return;
+    const maxVal = activeHabitCounter.maxMinutes || activeHabitCounter.targetCount || 30;
+    const duration = timerSecondsLeft > 0 ? timerSecondsLeft : maxVal * 60;
+    const endTime = Date.now() + duration * 1000;
+    localStorage.setItem(`timer_end_${activeHabitCounter.id}`, endTime.toString());
+    localStorage.removeItem(`timer_paused_${activeHabitCounter.id}`);
+    setIsTimerRunning(true);
+  };
+
+  const pauseTimer = () => {
+    if (!activeHabitCounter) return;
+    localStorage.setItem(`timer_paused_${activeHabitCounter.id}`, timerSecondsLeft.toString());
+    localStorage.removeItem(`timer_end_${activeHabitCounter.id}`);
+    setIsTimerRunning(false);
+  };
+
+  const resetTimer = () => {
+    if (!activeHabitCounter) return;
+    localStorage.removeItem(`timer_end_${activeHabitCounter.id}`);
+    localStorage.removeItem(`timer_paused_${activeHabitCounter.id}`);
+    setIsTimerRunning(false);
+    setIsOvertime(false);
+    const maxVal = activeHabitCounter.maxMinutes || activeHabitCounter.targetCount || 30;
+    const currentDone = getHabitCount(activeHabitCounter.id);
+    const remaining = Math.max(0, maxVal - currentDone);
+    setTimerSecondsLeft(remaining * 60);
+  };
 
   const toggleLanguage = (newLang: 'ar' | 'en') => {
     setLang(newLang);
@@ -475,6 +569,12 @@ export default function Home() {
 
   const status = getTrophyStatus(totalPercentage);
 
+  const formatTimerString = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
   return (
     <div className={`max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 select-none ${lang === 'ar' ? 'dir-rtl text-right' : 'dir-ltr text-left'}`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       
@@ -506,7 +606,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* نافذة البروفايل (البريد الإلكتروني واللغة) 👤 */}
+      {/* نافذة البروفايل 👤 */}
       {isProfileModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl relative my-8">
@@ -563,7 +663,7 @@ export default function Home() {
         />
       </div>
 
-      {/* 3. تبويبات الصفحة الرئيسية (العادات | المهام) */}
+      {/* 3. تبويبات الصفحة الرئيسية */}
       <div className="grid grid-cols-2 gap-1.5 bg-[#161e2c] p-1.5 rounded-2xl border border-gray-700/80 mb-6 text-center text-xs md:text-sm font-bold">
         <button
           onClick={() => setActiveMainTab('habits')}
@@ -611,7 +711,10 @@ export default function Home() {
                   count={getHabitCount(habit.id)}
                   isEditMode={isEditMode}
                   lang={lang}
-                  onCounterClick={() => setActiveHabitCounter(habit)}
+                  onCounterClick={() => {
+                    setActiveHabitCounter(habit);
+                    setTimerMode(habit.preferredMode || 'counter');
+                  }}
                   onQuickToggle={(e) => toggleQuickComplete(e, habit)}
                   onEdit={() => {
                     setEditingHabit(habit);
@@ -672,7 +775,102 @@ export default function Home() {
         </div>
       )}
 
-      {/* شاشة إضافة أو تعديل عادة بالكامل المطابقة للتصميم الأصلي + السويتش */}
+      {/* نافذة العداد والمؤقت التفاعلي المطابقة للصور المرفقة ⏱️ */}
+      {activeHabitCounter && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-[#121824] border border-gray-800 rounded-3xl p-6 w-full max-w-sm space-y-5 text-white text-center shadow-2xl relative">
+            <button
+              onClick={() => {
+                setActiveHabitCounter(null);
+                setIsTimerRunning(false);
+              }}
+              className="absolute top-4 left-4 text-gray-400 hover:text-white text-lg font-bold"
+            >
+              ✕
+            </button>
+
+            <div className="bg-[#1c2536] p-4 rounded-2xl border border-gray-700/60 space-y-1 mt-4">
+              <h3 className="text-2xl font-black">{activeHabitCounter.title}</h3>
+              <p className="text-xs text-gray-400 font-bold">
+                {t.targetLabel} {activeHabitCounter.targetCount} {activeHabitCounter.unit}
+              </p>
+            </div>
+
+            {activeHabitCounter.type === 'مؤقت' && (
+              <div className="flex justify-between items-center bg-[#0a0f18] p-2.5 rounded-2xl border border-gray-800">
+                <span className="text-xs font-bold text-gray-300">
+                  {timerMode === 'timer' ? '⏱️ مؤقت تفاعلي' : '📊 عداد يدوي'}
+                </span>
+                <button
+                  onClick={() => {
+                    const nextMode = timerMode === 'timer' ? 'counter' : 'timer';
+                    setTimerMode(nextMode);
+                    setIsTimerRunning(false);
+                  }}
+                  className={`w-12 h-6 rounded-full p-1 transition flex items-center ${
+                    timerMode === 'timer' ? 'bg-blue-600 justify-end' : 'bg-gray-700 justify-start'
+                  }`}
+                >
+                  <div className="w-4 h-4 rounded-full bg-white shadow-md" />
+                </button>
+              </div>
+            )}
+
+            {(activeHabitCounter.type !== 'مؤقت' || timerMode === 'counter') ? (
+              <div className="py-2 space-y-4">
+                <div className="flex justify-center items-center gap-5 my-2">
+                  <button
+                    onClick={() => updateHabitCount(activeHabitCounter.id, Math.max(0, getHabitCount(activeHabitCounter.id) - 1))}
+                    className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 text-white font-black text-3xl shadow-lg active:scale-90 transition flex items-center justify-center border border-red-400/40"
+                  >
+                    -
+                  </button>
+
+                  <div className="w-32 h-32 rounded-full border-4 border-blue-500 bg-blue-600/20 text-blue-400 flex flex-col items-center justify-center shadow-xl">
+                    <span className="text-4xl font-black">{getHabitCount(activeHabitCounter.id)}</span>
+                    <span className="text-[10px] text-gray-300 font-bold mt-1">
+                      {activeHabitCounter.minMinutes ? `${t.minLabel} ${activeHabitCounter.minMinutes}` : t.currentProgressLabel}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => updateHabitCount(activeHabitCounter.id, getHabitCount(activeHabitCounter.id) + 1)}
+                    className="w-16 h-16 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-3xl shadow-lg active:scale-90 transition flex items-center justify-center border border-emerald-400/40"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 py-2">
+                <div className="w-36 h-36 rounded-full border-4 border-blue-500/40 mx-auto flex flex-col items-center justify-center bg-blue-600/10 shadow-inner">
+                  <span className="text-3xl font-black font-mono tracking-wider text-blue-400">
+                    {formatTimerString(timerSecondsLeft)}
+                  </span>
+                  {isOvertime && <span className="text-[10px] text-amber-400 font-bold">{t.overtimeActive}</span>}
+                </div>
+
+                <div className="flex gap-2 justify-center">
+                  {!isTimerRunning ? (
+                    <button onClick={startTimer} className="flex-1 py-3 bg-emerald-600 text-white font-bold text-sm rounded-2xl">
+                      {t.startTimer}
+                    </button>
+                  ) : (
+                    <button onClick={pauseTimer} className="flex-1 py-3 bg-amber-600 text-white font-bold text-sm rounded-2xl">
+                      {t.pauseTimer}
+                    </button>
+                  )}
+                  <button onClick={resetTimer} className="px-4 py-3 bg-gray-800 text-gray-300 rounded-2xl text-xs font-bold">
+                    {t.resetTimer}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* شاشة إضافة أو تعديل عادة المطابقة للتصميم الأصلي */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-4 text-white shadow-2xl my-8">
@@ -730,7 +928,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* السويتش + السلايدر الرقمي الأصلي فوق الألوان مباشرة */}
               <div className="bg-[#0d131d] p-3 rounded-2xl border border-gray-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-blue-400">{t.useRange}</span>
@@ -815,7 +1012,7 @@ export default function Home() {
         </button>
       )}
 
-      {/* شريط التنقل السفلي الثابت وبداخله 4 خيارات رئيسية */}
+      {/* شريط التنقل السفلي الثابت وبداخله الخيارات الأربعة كاملة */}
       <div className="fixed bottom-0 left-0 right-0 bg-[#131a26]/90 backdrop-blur-lg border-t border-gray-800 py-3 px-6 flex justify-around items-center z-50 text-xs font-bold">
         <Link href="/" className="text-blue-400">{t.habitsNav}</Link>
         <Link href="/history" className="text-gray-400 hover:text-white transition">{t.historyNav}</Link>
