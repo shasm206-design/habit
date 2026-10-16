@@ -66,6 +66,9 @@ const TRANSLATIONS = {
     color: 'لون أشكال العادة',
     save: 'حفظ',
     cancel: 'إلغاء',
+    startTimer: '▶️ بدء المؤقت',
+    pauseTimer: '⏸️ إيقاف مؤقت',
+    resetTimer: '↺ إعادة',
   },
   en: {
     welcome: 'Welcome,',
@@ -97,6 +100,9 @@ const TRANSLATIONS = {
     color: 'Habit Color',
     save: 'Save',
     cancel: 'Cancel',
+    startTimer: '▶️ Start Timer',
+    pauseTimer: '⏸️ Pause Timer',
+    resetTimer: '↺ Reset',
   }
 };
 
@@ -106,8 +112,6 @@ export default function Home() {
 
   const [user, setUser] = useState<User | null>(null);
   const [displayName, setDisplayName] = useState<string>('هاشم');
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [tempNameInput, setTempNameInput] = useState('');
 
   const [habits, setHabits] = useState<Habit[]>([]);
   const [dailyData, setDailyData] = useState<{ [date: string]: DayProgress }>({});
@@ -143,7 +147,7 @@ export default function Home() {
   const [isTimerFinished, setIsTimerFinished] = useState(false);
   const [isOvertime, setIsOvertime] = useState(false);
 
-  // Auth & Form State
+  // Auth State
   const [authTab, setAuthTab] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -456,6 +460,37 @@ export default function Home() {
     setDraggedIndex(null);
   };
 
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    try {
+      if (rememberEmail) {
+        localStorage.setItem('habit_tracker_saved_email', email);
+      } else {
+        localStorage.removeItem('habit_tracker_saved_email');
+      }
+
+      if (authTab === 'signup') {
+        await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+      setIsAuthModalOpen(false);
+      setPassword('');
+    } catch (err: any) {
+      setAuthError(err.message || 'حدث خطأ أثناء الدخول');
+    }
+  };
+
+  const handleGoogleAuth = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+      setIsAuthModalOpen(false);
+    } catch (err: any) {
+      setAuthError(err.message || 'حدث خطأ عبر Google');
+    }
+  };
+
   const getSelectedDayOfWeek = () => {
     if (!selectedDate) return 0;
     return new Date(selectedDate).getDay();
@@ -487,15 +522,6 @@ export default function Home() {
       const minThresh = habit.minMinutes || habit.targetCount;
       const isCompleted = currentCount >= minThresh;
       updateHabitCount(habit.id, isCompleted ? 0 : minThresh);
-    }
-  };
-
-  const toggleDaySelection = (dayId: number) => {
-    if (selectedDays.includes(dayId)) {
-      if (selectedDays.length === 1) return;
-      setSelectedDays(selectedDays.filter((d) => d !== dayId));
-    } else {
-      setSelectedDays([...selectedDays, dayId]);
     }
   };
 
@@ -683,7 +709,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* نافذة البروفايل كاملة 👤 */}
+      {/* نافذة البروفايل 👤 */}
       {isProfileModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl relative my-8">
@@ -962,15 +988,15 @@ export default function Home() {
                 <div className="flex gap-2 justify-center">
                   {!isTimerRunning ? (
                     <button onClick={startTimer} className="flex-1 py-3 bg-emerald-600 text-white font-bold text-sm rounded-2xl">
-                      {t.startTimer || 'بدء'}
+                      {t.startTimer}
                     </button>
                   ) : (
                     <button onClick={pauseTimer} className="flex-1 py-3 bg-amber-600 text-white font-bold text-sm rounded-2xl">
-                      {t.pauseTimer || 'إيقاف'}
+                      {t.pauseTimer}
                     </button>
                   )}
                   <button onClick={resetTimer} className="px-4 py-3 bg-gray-800 text-gray-300 rounded-2xl text-xs font-bold">
-                    {t.resetTimer || 'إعادة'}
+                    {t.resetTimer}
                   </button>
                 </div>
               </div>
