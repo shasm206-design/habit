@@ -24,13 +24,6 @@ export interface TaskItem {
   completed: boolean;
 }
 
-export interface ExtendedGoal {
-  id: string;
-  title: string;
-  period: 'week' | 'month' | 'year';
-  completed: boolean;
-}
-
 const COLOR_OPTIONS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 const DAYS_LOOKUP = [
   { id: 0, label: 'أحد' },
@@ -42,7 +35,75 @@ const DAYS_LOOKUP = [
   { id: 6, label: 'سبت' },
 ];
 
+const TRANSLATIONS = {
+  ar: {
+    welcome: 'مرحباً،',
+    todayDate: 'تاريخ اليوم:',
+    signOut: 'تسجيل الخروج',
+    signIn: 'تسجيل الدخول 🔐',
+    habitsTab: '🎯 عاداتي اليومية',
+    todoTab: '📝 المهام (To-Do)',
+    goalsTab: '🏆 أهدافي الذكية',
+    myHabits: 'عاداتي',
+    editOrder: 'تعديل والترتيب ✏️',
+    doneSave: 'تم الحفظ ✔️',
+    noHabits: 'لا توجد عادات مسجلة لهذا اليوم المختار.',
+    add: 'إضافة ➕',
+    addHabit: 'إضافة عادة جديدة',
+    editHabit: 'تعديل العادة',
+    habitTitle: 'اسم العادة',
+    category: 'تصنيف العادة',
+    positive: '🎯 عادة إيجابية (بناء)',
+    negative: '🛡️ عادة سيئة (ترك)',
+    type: 'نوع العادة',
+    task: 'مهمة',
+    timer: 'مؤقت',
+    counter: 'عداد',
+    useRange: '⚙️ تفعيل نطاق مرن (حد أدنى وأقصى)',
+    minGoal: 'الحد الأدنى (%100 إنجاز)',
+    maxGoal: 'الحد الأقصى (بونص 👑)',
+    targetCount: 'تحديد العدد المستهدف',
+    color: 'لون أشكال العادة',
+    save: 'حفظ',
+    cancel: 'إلغاء',
+  },
+  en: {
+    welcome: 'Welcome,',
+    todayDate: 'Today:',
+    signOut: 'Sign Out',
+    signIn: 'Sign In 🔐',
+    habitsTab: '🎯 Daily Habits',
+    todoTab: '📝 To-Do List',
+    goalsTab: '🏆 SMART Goals',
+    myHabits: 'My Habits',
+    editOrder: 'Edit & Reorder ✏️',
+    doneSave: 'Saved ✔️',
+    noHabits: 'No habits recorded for this selected day.',
+    add: 'Add ➕',
+    addHabit: 'Add New Habit',
+    editHabit: 'Edit Habit',
+    habitTitle: 'Habit Title',
+    category: 'Habit Category',
+    positive: '🎯 Positive Habit',
+    negative: '🛡️ Bad Habit (Quit)',
+    type: 'Habit Type',
+    task: 'Task',
+    timer: 'Timer',
+    counter: 'Counter',
+    useRange: '⚙️ Enable Flexible Range (Min & Max)',
+    minGoal: 'Min Goal (100% Complete)',
+    maxGoal: 'Max Goal (Bonus 👑)',
+    targetCount: 'Set Target Count',
+    color: 'Habit Color',
+    save: 'Save',
+    cancel: 'Cancel',
+  }
+};
+
 export default function Home() {
+  const [lang, setLang] = useState<'ar' | 'en'>('ar');
+  const t = TRANSLATIONS[lang];
+
   const [user, setUser] = useState<User | null>(null);
   const [displayName, setDisplayName] = useState<string>('هاشم');
   const [isEditingName, setIsEditingName] = useState(false);
@@ -51,14 +112,22 @@ export default function Home() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [dailyData, setDailyData] = useState<{ [date: string]: DayProgress }>({});
   const [tasks, setTasks] = useState<{ [date: string]: TaskItem[] }>({});
-  const [extendedGoals, setExtendedGoals] = useState<ExtendedGoal[]>([]);
   
   const [selectedDate, setSelectedDate] = useState<string>('');
-  const [activeMainTab, setActiveMainTab] = useState<'habits' | 'todo' | 'goals'>('habits');
-  const [goalSubPeriod, setGoalSubPeriod] = useState<'week' | 'month' | 'year'>('week');
+  const [activeMainTab, setActiveMainTab] = useState<'habits' | 'todo'>('habits');
   
   const [isEditMode, setIsEditMode] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
+  // إعدادات البروفايل والعجلة
+  const [wheelTriggerMode, setWheelTriggerMode] = useState<'pct80' | 'restDay' | 'both' | 'disabled'>('both');
+  const [userRewards, setUserRewards] = useState<string[]>([
+    'طلب وجبة مفضلة 🍕',
+    'مشاهدة فيلم أو مسلسل 🎬',
+    'ساعة لعب إضافية 🎮',
+    'جولة بالسيارة مع القهوة ☕'
+  ]);
+  const [newRewardInput, setNewRewardInput] = useState('');
 
   // Modals & Timers
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -85,32 +154,39 @@ export default function Home() {
   const [title, setTitle] = useState('');
   const [habitType, setHabitType] = useState<'عداد' | 'مؤقت' | 'مهمة'>('عداد');
   const [habitCategory, setHabitCategory] = useState<'إيجابية' | 'سيئة'>('إيجابية');
+  const [useRange, setUseRange] = useState<boolean>(false);
+  const [minValInput, setMinValInput] = useState<number>(10);
+  const [maxValInput, setMaxValInput] = useState<number>(30);
   const [targetCount, setTargetCount] = useState<number>(10);
   const [unit, setUnit] = useState('صفحة');
   const [selectedColor, setSelectedColor] = useState(COLOR_OPTIONS[0]);
   const [selectedDays, setSelectedDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
 
-  // To-Do Input & Goal Input State
   const [newTaskInput, setNewTaskInput] = useState('');
-  const [newGoalInput, setNewGoalInput] = useState('');
 
   const getLocalDateString = () => {
     const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
   useEffect(() => {
     const todayStr = getLocalDateString();
     setSelectedDate(todayStr);
 
+    const savedLang = localStorage.getItem('habit_tracker_lang');
+    if (savedLang === 'en' || savedLang === 'ar') setLang(savedLang);
+
     const savedEmail = localStorage.getItem('habit_tracker_saved_email');
     if (savedEmail) setEmail(savedEmail);
 
     const savedName = localStorage.getItem('habit_tracker_user_name');
     if (savedName) setDisplayName(savedName);
+
+    const savedRewards = localStorage.getItem('habit_tracker_rewards');
+    if (savedRewards) setUserRewards(JSON.parse(savedRewards));
+
+    const savedTrigger = localStorage.getItem('habit_tracker_wheel_trigger');
+    if (savedTrigger) setWheelTriggerMode(savedTrigger as any);
 
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -122,7 +198,8 @@ export default function Home() {
             if (data.habits) setHabits(data.habits);
             if (data.dailyData) setDailyData(data.dailyData);
             if (data.displayName) setDisplayName(data.displayName);
-            if (data.extendedGoals) setExtendedGoals(data.extendedGoals);
+            if (data.userRewards) setUserRewards(data.userRewards);
+            if (data.wheelTriggerMode) setWheelTriggerMode(data.wheelTriggerMode);
             if (data.tasks) {
               const processedTasks = handleCarryOverTasks(data.tasks, todayStr);
               setTasks(processedTasks);
@@ -135,8 +212,6 @@ export default function Home() {
         if (savedHabits) setHabits(JSON.parse(savedHabits));
         const savedDaily = localStorage.getItem('habit_tracker_daily');
         if (savedDaily) setDailyData(JSON.parse(savedDaily));
-        const savedGoals = localStorage.getItem('habit_tracker_goals');
-        if (savedGoals) setExtendedGoals(JSON.parse(savedGoals));
         const savedTasks = localStorage.getItem('habit_tracker_tasks');
         if (savedTasks) {
           const parsed = JSON.parse(savedTasks);
@@ -149,6 +224,11 @@ export default function Home() {
     return () => unsubscribeAuth();
   }, []);
 
+  const toggleLanguage = (newLang: 'ar' | 'en') => {
+    setLang(newLang);
+    localStorage.setItem('habit_tracker_lang', newLang);
+  };
+
   // إدارة المؤقت الذكي
   useEffect(() => {
     if (!activeHabitCounter || activeHabitCounter.type !== 'مؤقت') return;
@@ -157,10 +237,11 @@ export default function Home() {
     const storedEndTime = localStorage.getItem(`timer_end_${habitId}`);
     const storedPausedLeft = localStorage.getItem(`timer_paused_${habitId}`);
 
+    const maxVal = activeHabitCounter.maxMinutes || activeHabitCounter.targetCount || 30;
+
     if (storedEndTime) {
       const endTime = parseInt(storedEndTime, 10);
-      const now = Date.now();
-      const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
+      const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
       setTimerSecondsLeft(remaining);
       setIsTimerRunning(remaining > 0);
       setIsTimerFinished(remaining === 0);
@@ -170,7 +251,7 @@ export default function Home() {
       setIsTimerFinished(false);
     } else {
       const currentDoneMinutes = getHabitCount(habitId);
-      const remainingMinutes = Math.max(0, activeHabitCounter.targetCount - currentDoneMinutes);
+      const remainingMinutes = Math.max(0, maxVal - currentDoneMinutes);
       setTimerSecondsLeft(remainingMinutes * 60);
       setIsTimerRunning(false);
       setIsTimerFinished(false);
@@ -202,7 +283,8 @@ export default function Home() {
               setIsTimerFinished(true);
               localStorage.removeItem(`timer_end_${activeHabitCounter.id}`);
               localStorage.removeItem(`timer_paused_${activeHabitCounter.id}`);
-              updateHabitCount(activeHabitCounter.id, activeHabitCounter.targetCount);
+              const maxVal = activeHabitCounter.maxMinutes || activeHabitCounter.targetCount || 30;
+              updateHabitCount(activeHabitCounter.id, maxVal);
             }
           }
         }
@@ -213,7 +295,8 @@ export default function Home() {
 
   const startTimer = () => {
     if (!activeHabitCounter) return;
-    const duration = timerSecondsLeft > 0 ? timerSecondsLeft : activeHabitCounter.targetCount * 60;
+    const maxVal = activeHabitCounter.maxMinutes || activeHabitCounter.targetCount || 30;
+    const duration = timerSecondsLeft > 0 ? timerSecondsLeft : maxVal * 60;
     const endTime = Date.now() + duration * 1000;
     localStorage.setItem(`timer_end_${activeHabitCounter.id}`, endTime.toString());
     localStorage.removeItem(`timer_paused_${activeHabitCounter.id}`);
@@ -242,8 +325,9 @@ export default function Home() {
     setIsTimerRunning(false);
     setIsTimerFinished(false);
     setIsOvertime(false);
+    const maxVal = activeHabitCounter.maxMinutes || activeHabitCounter.targetCount || 30;
     const currentDone = getHabitCount(activeHabitCounter.id);
-    const remaining = Math.max(0, activeHabitCounter.targetCount - currentDone);
+    const remaining = Math.max(0, maxVal - currentDone);
     setTimerSecondsLeft(remaining * 60);
   };
 
@@ -277,22 +361,24 @@ export default function Home() {
     updatedDaily: { [date: string]: DayProgress },
     updatedTasks = tasks,
     nameToSave = displayName,
-    updatedGoals = extendedGoals
+    rewardsToSave = userRewards,
+    triggerModeToSave = wheelTriggerMode
   ) => {
     setHabits(updatedHabits);
     setDailyData(updatedDaily);
     setTasks(updatedTasks);
-    setExtendedGoals(updatedGoals);
+    setUserRewards(rewardsToSave);
+    setWheelTriggerMode(triggerModeToSave);
 
     if (user) {
       try {
-        const userDocRef = doc(db, 'users', user.uid);
-        await setDoc(userDocRef, { 
+        await setDoc(doc(db, 'users', user.uid), { 
           habits: updatedHabits, 
           dailyData: updatedDaily, 
           tasks: updatedTasks,
           displayName: nameToSave,
-          extendedGoals: updatedGoals
+          userRewards: rewardsToSave,
+          wheelTriggerMode: triggerModeToSave
         }, { merge: true });
       } catch (err) {
         console.error('خطأ في حفظ البيانات:', err);
@@ -301,9 +387,23 @@ export default function Home() {
       localStorage.setItem('habit_tracker_habits', JSON.stringify(updatedHabits));
       localStorage.setItem('habit_tracker_daily', JSON.stringify(updatedDaily));
       localStorage.setItem('habit_tracker_tasks', JSON.stringify(updatedTasks));
-      localStorage.setItem('habit_tracker_goals', JSON.stringify(updatedGoals));
       localStorage.setItem('habit_tracker_user_name', nameToSave);
+      localStorage.setItem('habit_tracker_rewards', JSON.stringify(rewardsToSave));
+      localStorage.setItem('habit_tracker_wheel_trigger', triggerModeToSave);
     }
+  };
+
+  const handleAddReward = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRewardInput.trim()) return;
+    const updated = [...userRewards, newRewardInput.trim()];
+    saveData(habits, dailyData, tasks, displayName, updated);
+    setNewRewardInput('');
+  };
+
+  const handleDeleteReward = (index: number) => {
+    const updated = userRewards.filter((_, i) => i !== index);
+    saveData(habits, dailyData, tasks, displayName, updated);
   };
 
   const moveHabit = (index: number, direction: 'up' | 'down') => {
@@ -356,45 +456,6 @@ export default function Home() {
     setDraggedIndex(null);
   };
 
-  const handleAuthSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError('');
-    try {
-      if (rememberEmail) {
-        localStorage.setItem('habit_tracker_saved_email', email);
-      } else {
-        localStorage.removeItem('habit_tracker_saved_email');
-      }
-
-      if (authTab === 'signup') {
-        await createUserWithEmailAndPassword(auth, email, password);
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-      }
-      setIsAuthModalOpen(false);
-      setPassword('');
-    } catch (err: any) {
-      setAuthError(err.message || 'حدث خطأ أثناء إجراء الدخول');
-    }
-  };
-
-  const handleGoogleAuth = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-      setIsAuthModalOpen(false);
-    } catch (err: any) {
-      setAuthError(err.message || 'حدث خطأ في تسجيل الدخول عبر Google');
-    }
-  };
-
-  const handleSaveName = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!tempNameInput.trim()) return;
-    setDisplayName(tempNameInput);
-    saveData(habits, dailyData, tasks, tempNameInput);
-    setIsEditingName(false);
-  };
-
   const getSelectedDayOfWeek = () => {
     if (!selectedDate) return 0;
     return new Date(selectedDate).getDay();
@@ -405,7 +466,6 @@ export default function Home() {
   );
 
   const currentDayProgress = dailyData[selectedDate] || {};
-
   const getHabitCount = (habitId: string) => currentDayProgress[habitId] || 0;
 
   const updateHabitCount = (habitId: string, newCount: number) => {
@@ -424,8 +484,9 @@ export default function Home() {
       updateHabitCount(habit.id, current > 0 ? 0 : 1);
     } else {
       const currentCount = getHabitCount(habit.id);
-      const isCompleted = currentCount >= habit.targetCount;
-      updateHabitCount(habit.id, isCompleted ? 0 : habit.targetCount);
+      const minThresh = habit.minMinutes || habit.targetCount;
+      const isCompleted = currentCount >= minThresh;
+      updateHabitCount(habit.id, isCompleted ? 0 : minThresh);
     }
   };
 
@@ -442,7 +503,7 @@ export default function Home() {
     e.preventDefault();
     if (!title.trim()) return;
 
-    const finalTarget = habitType === 'مهمة' ? 1 : Number(targetCount) || 1;
+    const finalTarget = habitType === 'مهمة' ? 1 : useRange ? maxValInput : Number(targetCount) || 1;
     const finalUnit = habitType === 'مؤقت' ? 'دقيقة' : habitType === 'مهمة' ? 'مرة' : unit;
 
     let updatedHabits: Habit[];
@@ -454,6 +515,8 @@ export default function Home() {
               title, 
               type: habitType,
               targetCount: finalTarget, 
+              minMinutes: useRange ? minValInput : undefined,
+              maxMinutes: useRange ? maxValInput : undefined,
               unit: finalUnit, 
               color: selectedColor,
               repeatDays: selectedDays,
@@ -467,11 +530,14 @@ export default function Home() {
         title,
         type: habitType,
         targetCount: finalTarget,
+        minMinutes: useRange ? minValInput : undefined,
+        maxMinutes: useRange ? maxValInput : undefined,
         unit: finalUnit,
         color: selectedColor,
         repeatDays: selectedDays,
         category: habitCategory,
-        preferredMode: 'counter'
+        preferredMode: 'counter',
+        streakCount: 0
       };
       updatedHabits = [...habits, newHabit];
     }
@@ -526,95 +592,6 @@ export default function Home() {
     saveData(habits, dailyData, updatedTasks);
   };
 
-  // وظائف إدارة الأهداف الممتدة
-  const addExtendedGoal = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newGoalInput.trim()) return;
-    const newGoal: ExtendedGoal = {
-      id: Date.now().toString(),
-      title: newGoalInput,
-      period: goalSubPeriod,
-      completed: false
-    };
-    const updated = [...extendedGoals, newGoal];
-    saveData(habits, dailyData, tasks, displayName, updated);
-    setNewGoalInput('');
-  };
-
-  const toggleExtendedGoal = (goalId: string) => {
-    const updated = extendedGoals.map((g) => g.id === goalId ? { ...g, completed: !g.completed } : g);
-    saveData(habits, dailyData, tasks, displayName, updated);
-  };
-
-  const deleteExtendedGoal = (goalId: string) => {
-    const updated = extendedGoals.filter((g) => g.id !== goalId);
-    saveData(habits, dailyData, tasks, displayName, updated);
-  };
-
-  const getHabitStreakStatus = (habit: Habit) => {
-    let streakCount = 0;
-    let currentType: 'gold' | 'bronze' | 'warrior' | 'none' = 'none';
-
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
-
-    const countToday = dailyData[todayStr]?.[habit.id] || 0;
-    const countYesterday = dailyData[yesterdayStr]?.[habit.id] || 0;
-
-    const pctToday = countToday / (habit.targetCount || 1);
-    const pctYesterday = countYesterday / (habit.targetCount || 1);
-
-    let consecutiveGaps = 0;
-
-    for (let i = 0; i < 365; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dayOfWeek = d.getDay();
-
-      if (habit.repeatDays && !habit.repeatDays.includes(dayOfWeek)) {
-        continue;
-      }
-
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      const cnt = dailyData[dateStr]?.[habit.id] || 0;
-      const pct = cnt / (habit.targetCount || 1);
-
-      if (pct >= 1) {
-        streakCount++;
-        consecutiveGaps = 0;
-      } else if (i > 0) {
-        consecutiveGaps++;
-        if (consecutiveGaps > 1) {
-          break;
-        }
-      }
-    }
-
-    if (habit.category === 'سيئة') {
-      if (countToday === 0) {
-        currentType = 'gold';
-      } else {
-        currentType = 'warrior';
-      }
-    } else {
-      if (pctToday >= 1) {
-        currentType = 'gold';
-      } else {
-        if (pctYesterday < 1 && dailyData[yesterdayStr] !== undefined) {
-          currentType = 'warrior';
-        } else {
-          currentType = 'bronze';
-        }
-      }
-    }
-
-    return { type: currentType, count: streakCount };
-  };
-
   const calculateTotalDayPercentage = () => {
     const habitsCount = visibleHabits.length;
     const tasksCount = currentDayTasks.length;
@@ -628,12 +605,12 @@ export default function Home() {
       if (h.category === 'سيئة') {
         habitsCompletedScore += cnt === 0 ? 1 : 0;
       } else {
-        habitsCompletedScore += Math.min(1, cnt / (h.targetCount || 1));
+        const minThresh = h.minMinutes || h.targetCount || 1;
+        habitsCompletedScore += Math.min(1, cnt / minThresh);
       }
     });
 
     const tasksCompletedScore = currentDayTasks.filter((t) => t.completed).length;
-
     return Math.round(((habitsCompletedScore + tasksCompletedScore) / totalItems) * 100);
   };
 
@@ -643,8 +620,8 @@ export default function Home() {
     if (pct >= 95) {
       return { 
         trophy: '👑', 
-        label: 'يا استثنائي', 
-        desc: 'أداء مبهر يفوق التوقعات!',
+        label: lang === 'ar' ? 'يا استثنائي' : 'Exceptional', 
+        desc: lang === 'ar' ? 'أداء مبهر يفوق التوقعات!' : 'Outstanding performance!',
         bgGradient: 'from-amber-400 via-yellow-500 to-amber-600',
         textColor: 'text-black'
       };
@@ -652,36 +629,18 @@ export default function Home() {
     if (pct >= 80) {
       return { 
         trophy: '🥇', 
-        label: 'ممتاز', 
-        desc: 'إنجاز رفيع ومستوى متقدم جداً',
+        label: lang === 'ar' ? 'ممتاز' : 'Excellent', 
+        desc: lang === 'ar' ? 'إنجاز رفيع ومستوى متقدم' : 'Great progress and level',
         bgGradient: 'from-yellow-500 to-amber-500',
         textColor: 'text-black'
       };
     }
-    if (pct >= 60) {
-      return { 
-        trophy: '🥈', 
-        label: 'جيد', 
-        desc: 'استمرار رائع وتقدم ملحوظ',
-        bgGradient: 'from-slate-300 via-gray-400 to-slate-500',
-        textColor: 'text-black'
-      };
-    }
-    if (pct >= 40) {
-      return { 
-        trophy: '🥉', 
-        label: 'مقبول', 
-        desc: 'بداية خطوة متينة، واصل!',
-        bgGradient: 'from-amber-700 via-amber-800 to-amber-900',
-        textColor: 'text-white'
-      };
-    }
     return { 
-      trophy: '❌', 
-      label: 'متواضع', 
-      desc: 'حفّز نفسك للبدء بالعادة الأولى اليوم',
-      bgGradient: 'from-slate-800 to-slate-900',
-      textColor: 'text-gray-300'
+      trophy: '🥈', 
+      label: lang === 'ar' ? 'جيد' : 'Good', 
+      desc: lang === 'ar' ? 'استمرار رائع وتقدم ملحوظ' : 'Consistent effort',
+      bgGradient: 'from-slate-300 via-gray-400 to-slate-500',
+      textColor: 'text-black'
     };
   };
 
@@ -693,57 +652,41 @@ export default function Home() {
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
-  const filteredGoals = extendedGoals.filter((g) => g.period === goalSubPeriod);
-  const completedGoalsCount = filteredGoals.filter((g) => g.completed).length;
-  const goalsPct = filteredGoals.length > 0 ? Math.round((completedGoalsCount / filteredGoals.length) * 100) : 0;
-
   return (
-    <div className="max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 dir-rtl text-right select-none" dir="rtl">
+    <div className={`max-w-4xl mx-auto min-h-screen bg-[#0d131d] text-white p-4 md:p-8 font-sans pb-28 select-none ${lang === 'ar' ? 'dir-rtl text-right' : 'dir-ltr text-left'}`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       
-      {/* 1. الترويسة الرئيسية + تفاصيل الحساب */}
+      {/* 1. الترويسة الشاملة والبروفايل */}
       <div className="flex justify-between items-center mb-6 pt-2">
         <div className="flex items-center gap-3">
           <button 
             onClick={() => setIsProfileModalOpen(true)}
             className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 border border-blue-400/40 flex items-center justify-center font-bold text-xl shadow-lg shadow-blue-500/20 hover:scale-105 active:scale-95 transition cursor-pointer"
-            title="عرض تفاصيل الحساب"
           >
             👤
           </button>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl md:text-2xl font-extrabold bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
-                مرحباً، {displayName}
-              </h1>
-              <button 
-                onClick={() => {
-                  setTempNameInput(displayName);
-                  setIsEditingName(true);
-                }} 
-                className="text-xs text-blue-400 hover:text-blue-300 font-bold p-1 bg-blue-500/10 rounded-lg border border-blue-500/20"
-              >
-                ✏️
-              </button>
-            </div>
-            <p className="text-xs text-blue-400/80 font-medium">تاريخ اليوم: {selectedDate}</p>
+            <h1 className="text-xl md:text-2xl font-extrabold text-white">{t.welcome} {displayName}</h1>
+            <p className="text-xs text-blue-400/80 font-medium">{t.todayDate} {selectedDate}</p>
           </div>
         </div>
 
-        {user ? (
-          <button onClick={() => signOut(auth)} className="text-xs bg-red-500/20 text-red-400 px-4 py-2 rounded-xl font-bold border border-red-500/30 hover:bg-red-500/30 transition">
-            تسجيل الخروج
-          </button>
-        ) : (
-          <button onClick={() => setIsAuthModalOpen(true)} className="text-xs bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 px-4 py-2 rounded-xl font-bold shadow-lg shadow-blue-600/30 transition">
-            تسجيل الدخول 🔐
-          </button>
-        )}
+        <div>
+          {user ? (
+            <button onClick={() => signOut(auth)} className="text-xs bg-red-500/20 text-red-400 px-3.5 py-2 rounded-xl font-bold border border-red-500/30 hover:bg-red-500/30 transition">
+              {t.signOut}
+            </button>
+          ) : (
+            <button onClick={() => setIsAuthModalOpen(true)} className="text-xs bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 px-3.5 py-2 rounded-xl font-bold shadow-lg shadow-blue-600/30 transition">
+              {t.signIn}
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* نافذة تفاصيل الحساب 👤 */}
+      {/* نافذة البروفايل كاملة 👤 */}
       {isProfileModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-sm space-y-5 text-white shadow-2xl relative text-center">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl relative my-8">
             <button 
               onClick={() => setIsProfileModalOpen(false)} 
               className="absolute top-4 left-4 text-gray-400 hover:text-white text-lg font-bold"
@@ -755,73 +698,60 @@ export default function Home() {
               👤
             </div>
 
-            <div className="space-y-1">
-              <h3 className="text-2xl font-black">{displayName}</h3>
-              <p className="text-xs text-blue-400 font-bold">
-                {user ? 'حساب مسجل ومُتزامن سحابياً ✅' : 'حساب زائر محلي (غير مسجل) 📱'}
-              </p>
+            <h3 className="text-2xl font-black text-center">{displayName}</h3>
+
+            <div className="bg-[#0d131d] border border-gray-800 rounded-2xl p-4 space-y-3">
+              <label className="text-xs font-bold text-amber-400 block text-right">⚙️ شرط فتح عجلة المكافآت:</label>
+              <div className="space-y-2 text-xs font-bold">
+                {[
+                  { id: 'pct80', label: '🎯 عند تحقيق 80% من الإنجاز أسبوعياً/يومياً' },
+                  { id: 'restDay', label: '🛡️ في يوم الإجازة المجدول فقط' },
+                  { id: 'both', label: '🌟 في كلاهما (عند تحقيق 80% أو يوم الإجازة)' },
+                  { id: 'disabled', label: '🚫 إيقاف العجلة كلياً' }
+                ].map((mode) => (
+                  <button
+                    key={mode.id}
+                    onClick={() => saveData(habits, dailyData, tasks, displayName, userRewards, mode.id as any)}
+                    className={`w-full p-2.5 rounded-xl border text-right transition ${
+                      wheelTriggerMode === mode.id ? 'bg-amber-500/20 border-amber-500 text-amber-300' : 'bg-[#161e2c] border-gray-800 text-gray-400'
+                    }`}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="bg-[#0d131d] border border-gray-800 rounded-2xl p-4 text-right space-y-3 text-xs">
-              <div>
-                <span className="text-gray-400 block mb-0.5">البريد الإلكتروني:</span>
-                <span className="font-bold text-white text-sm dir-ltr text-right block">
-                  {user?.email || (email ? email : 'غير مسجل حالياً')}
-                </span>
-              </div>
-              <div className="border-t border-gray-800 pt-2">
-                <span className="text-gray-400 block mb-0.5">تاريخ الجلسة:</span>
-                <span className="font-bold text-gray-300">{selectedDate}</span>
+            <div className="bg-[#0d131d] border border-gray-800 rounded-2xl p-4 space-y-3">
+              <label className="text-xs font-bold text-gray-300 block text-right">🎁 قائمة مكافآتك الخاصة بالعجلة:</label>
+              <form onSubmit={handleAddReward} className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="إضافة مكافأة جديدة..."
+                  value={newRewardInput}
+                  onChange={(e) => setNewRewardInput(e.target.value)}
+                  className="flex-1 bg-[#161e2c] border border-gray-700 p-2 rounded-xl text-xs outline-none text-white"
+                />
+                <button type="submit" className="bg-amber-500 text-black px-3 py-2 rounded-xl text-xs font-bold">إضافة</button>
+              </form>
+              <div className="max-h-32 overflow-y-auto space-y-1.5 pt-1">
+                {userRewards.map((reward, i) => (
+                  <div key={i} className="flex justify-between items-center bg-[#161e2c] p-2 rounded-xl text-xs font-bold border border-gray-800">
+                    <span>{reward}</span>
+                    <button onClick={() => handleDeleteReward(i)} className="text-red-400 text-xs">🗑️</button>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {user ? (
-              <button
-                onClick={() => {
-                  signOut(auth);
-                  setIsProfileModalOpen(false);
-                }}
-                className="w-full py-3 bg-red-600/20 hover:bg-red-600/30 text-red-400 font-bold text-xs rounded-xl border border-red-500/40 transition"
-              >
-                تسجيل الخروج 🚪
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  setIsProfileModalOpen(false);
-                  setIsAuthModalOpen(true);
-                }}
-                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 font-bold text-xs rounded-xl shadow-lg shadow-blue-600/30 transition"
-              >
-                تسجيل الدخول / إنشاء حساب 🔐
-              </button>
-            )}
+            <div className="bg-[#0d131d] border border-gray-800 p-3 rounded-2xl flex justify-between items-center text-xs font-bold">
+              <span className="text-gray-300">لغة الواجهة / Language:</span>
+              <div className="flex gap-1">
+                <button onClick={() => toggleLanguage('ar')} className={`px-3 py-1.5 rounded-xl ${lang === 'ar' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>العربية</button>
+                <button onClick={() => toggleLanguage('en')} className={`px-3 py-1.5 rounded-xl ${lang === 'en' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>English</button>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* نافذة تعديل الاسم الشخصي */}
-      {isEditingName && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <form onSubmit={handleSaveName} className="bg-[#18202e] border border-gray-700 rounded-3xl p-6 w-full max-w-xs space-y-4 shadow-2xl">
-            <h3 className="text-base font-bold text-center">تحديث اسم الحساب الشخصي</h3>
-            <input
-              type="text"
-              value={tempNameInput}
-              onChange={(e) => setTempNameInput(e.target.value)}
-              placeholder="أدخل اسمك المفضّل..."
-              className="w-full bg-[#0d131d] border border-gray-700 p-3 rounded-xl outline-none text-sm text-white focus:border-blue-500 text-center font-bold"
-              required
-            />
-            <div className="flex gap-2">
-              <button type="submit" className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 font-bold text-xs rounded-xl transition">
-                حفظ الاسم
-              </button>
-              <button type="button" onClick={() => setIsEditingName(false)} className="flex-1 py-2.5 bg-gray-800 text-gray-300 font-bold text-xs rounded-xl transition">
-                إلغاء
-              </button>
-            </div>
-          </form>
         </div>
       )}
 
@@ -831,9 +761,9 @@ export default function Home() {
           <span className="text-3xl filter drop-shadow">{status.trophy}</span>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-black text-lg tracking-wide block">تقدم اليوم: {totalPercentage}%</span>
+              <span className="font-black text-lg tracking-wide block">{totalPercentage}%</span>
               <span className="text-xs font-black px-2 py-0.5 rounded-lg bg-black/20 backdrop-blur-sm">
-                التقييم: {status.label}
+                {status.label}
               </span>
             </div>
             <span className="text-xs font-medium opacity-90 block mt-0.5">{status.desc}</span>
@@ -847,7 +777,7 @@ export default function Home() {
         />
       </div>
 
-      {/* 3. تبويب العادات، المهام، والأهداف الممتدة الجديد 🎯 */}
+      {/* 3. التبويبات الرئيسية وتوجيه الأهداف لصفحتها الخارجية */}
       <div className="grid grid-cols-3 gap-1.5 bg-[#161e2c] p-1.5 rounded-2xl border border-gray-700/80 mb-6 text-center text-xs md:text-sm font-bold">
         <button
           onClick={() => setActiveMainTab('habits')}
@@ -855,7 +785,7 @@ export default function Home() {
             activeMainTab === 'habits' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
           }`}
         >
-          🎯 عاداتي اليومية
+          {t.habitsTab}
         </button>
         <button
           onClick={() => setActiveMainTab('todo')}
@@ -863,331 +793,108 @@ export default function Home() {
             activeMainTab === 'todo' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
           }`}
         >
-          📝 المهام (To-Do)
+          {t.todoTab}
         </button>
-        <button
-          onClick={() => setActiveMainTab('goals')}
-          className={`py-3 rounded-xl transition ${
-            activeMainTab === 'goals' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
-          }`}
+        <Link
+          href="/goals"
+          className="py-3 rounded-xl transition text-gray-400 hover:text-white flex items-center justify-center"
         >
-          🏆 أهدافي الممتدة
-        </button>
+          {t.goalsTab}
+        </Link>
       </div>
 
       {/* قسم العادات اليومية */}
       {activeMainTab === 'habits' && (
         <>
           <div className="flex justify-between items-center mb-4 px-2">
-            <h2 className="text-2xl font-bold">عاداتي</h2>
+            <h2 className="text-2xl font-bold">{t.myHabits}</h2>
             <button
               onClick={() => setIsEditMode(!isEditMode)}
               className={`text-xs px-4 py-2 rounded-xl font-bold transition shadow-md ${
                 isEditMode ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-[#18202e] text-gray-300 hover:bg-gray-700 border border-gray-700/80'
               }`}
             >
-              {isEditMode ? 'تم الحفظ ✔️' : 'تعديل والترتيب ✏️'}
+              {isEditMode ? t.doneSave : t.editOrder}
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {visibleHabits.length === 0 ? (
               <div className="col-span-full text-center py-12 text-gray-500 text-sm bg-[#131a26] rounded-3xl border border-dashed border-gray-800">
-                لا توجد عادات مسجلة لهذا اليوم المختار.
+                {t.noHabits}
               </div>
             ) : (
-              visibleHabits.map((habit, index) => {
-                const count = getHabitCount(habit.id);
-                const streakInfo = getHabitStreakStatus(habit);
-
-                return (
-                  <div 
-                    key={habit.id}
-                    draggable={isEditMode}
-                    onDragStart={() => handleDragStart(index)}
-                    onDragOver={handleDragOver}
-                    onDrop={() => handleDrop(index)}
-                    className={isEditMode ? 'cursor-grab active:cursor-grabbing' : ''}
-                  >
-                    <HabitCard
-                      habit={habit}
-                      count={count}
-                      isEditMode={isEditMode}
-                      streakStatus={streakInfo}
-                      onCounterClick={() => {
-                        if (habit.category === 'سيئة') {
-                          updateHabitCount(habit.id, count > 0 ? 0 : 1);
-                        } else if (habit.type === 'مهمة' || habit.targetCount === 1) {
-                          updateHabitCount(habit.id, count >= 1 ? 0 : 1);
-                        } else {
-                          openCounterModal(habit);
-                        }
-                      }}
-                      onQuickToggle={(e) => toggleQuickComplete(e, habit)}
-                      onEdit={() => {
-                        setEditingHabit(habit);
-                        setTitle(habit.title);
-                        setHabitType(habit.type || 'عداد');
-                        setHabitCategory(habit.category || 'إيجابية');
-                        setTargetCount(habit.targetCount || 1);
-                        setUnit(habit.unit);
-                        setSelectedColor(habit.color);
-                        setSelectedDays(habit.repeatDays || [0, 1, 2, 3, 4, 5, 6]);
-                        setIsAddModalOpen(true);
-                      }}
-                      onDelete={() => {
-                        const updatedHabits = habits.filter((h) => h.id !== habit.id);
-                        saveData(updatedHabits, dailyData);
-                      }}
-                      onMoveUp={index > 0 ? () => moveHabit(index, 'up') : undefined}
-                      onMoveDown={index < visibleHabits.length - 1 ? () => moveHabit(index, 'down') : undefined}
-                    />
-                  </div>
-                );
-              })
+              visibleHabits.map((habit, index) => (
+                <HabitCard
+                  key={habit.id}
+                  habit={habit}
+                  count={getHabitCount(habit.id)}
+                  isEditMode={isEditMode}
+                  onCounterClick={() => openCounterModal(habit)}
+                  onQuickToggle={(e) => toggleQuickComplete(e, habit)}
+                  onEdit={() => {
+                    setEditingHabit(habit);
+                    setTitle(habit.title);
+                    setHabitType(habit.type || 'عداد');
+                    setHabitCategory(habit.category || 'إيجابية');
+                    setUseRange(!!(habit.minMinutes && habit.maxMinutes));
+                    setMinValInput(habit.minMinutes || 10);
+                    setMaxValInput(habit.maxMinutes || 30);
+                    setTargetCount(habit.targetCount || 10);
+                    setUnit(habit.unit);
+                    setSelectedColor(habit.color);
+                    setSelectedDays(habit.repeatDays || [0, 1, 2, 3, 4, 5, 6]);
+                    setIsAddModalOpen(true);
+                  }}
+                  onDelete={() => saveData(habits.filter((h) => h.id !== habit.id), dailyData)}
+                  onMoveUp={index > 0 ? () => moveHabit(index, 'up') : undefined}
+                  onMoveDown={index < visibleHabits.length - 1 ? () => moveHabit(index, 'down') : undefined}
+                />
+              ))
             )}
           </div>
         </>
       )}
 
-      {/* قسم قائمة المهام */}
+      {/* قسم المهام (To-Do) */}
       {activeMainTab === 'todo' && (
-        <div className="space-y-6">
+        <div className="space-y-4">
           <form onSubmit={addTask} className="flex gap-2">
             <input
               type="text"
               placeholder="إضافة مهمة جديدة اليوم..."
               value={newTaskInput}
               onChange={(e) => setNewTaskInput(e.target.value)}
-              className="flex-1 bg-[#161e2c] border border-gray-700/80 p-3.5 rounded-2xl outline-none text-white text-sm focus:border-blue-500"
+              className="flex-1 bg-[#161e2c] border border-gray-700/80 p-3 rounded-2xl outline-none text-white text-sm focus:border-blue-500"
             />
-            <button
-              type="submit"
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3.5 rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition"
-            >
-              إضافة ➕
+            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-2xl text-sm font-bold shadow-lg transition">
+              {t.add}
             </button>
           </form>
 
-          <div className="space-y-3">
-            {currentDayTasks.length === 0 ? (
-              <div className="text-center py-12 text-gray-500 text-sm bg-[#131a26] rounded-3xl border border-dashed border-gray-800">
-                لا توجد مهام إضافية لليوم.
-              </div>
-            ) : (
-              currentDayTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className={`p-4 rounded-2xl flex justify-between items-center border transition ${
-                    task.completed
-                      ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-200 line-through'
-                      : 'bg-[#161e2c] border-gray-700/80 text-white'
-                  }`}
-                >
-                  <div
+          <div className="space-y-2">
+            {currentDayTasks.map((task) => (
+              <div key={task.id} className="bg-[#161e2c] border border-gray-800 p-3.5 rounded-2xl flex justify-between items-center text-sm font-bold">
+                <span className={task.completed ? 'line-through text-gray-500' : 'text-white'}>{task.title}</span>
+                <div className="flex items-center gap-2">
+                  <button
                     onClick={() => toggleTask(task.id)}
-                    className="flex items-center gap-3 cursor-pointer flex-1"
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${task.completed ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-300'}`}
                   >
-                    <div className={`w-6 h-6 rounded-lg border flex items-center justify-center font-bold text-xs ${
-                      task.completed ? 'bg-emerald-500 border-emerald-400 text-white' : 'border-gray-600'
-                    }`}>
-                      {task.completed && '✓'}
-                    </div>
-                    <span className="text-sm font-bold">{task.title}</span>
-                  </div>
-                  <button
-                    onClick={() => deleteTask(task.id)}
-                    className="text-gray-500 hover:text-red-400 p-1 text-sm font-bold transition"
-                  >
-                    🗑️
+                    {task.completed ? 'مكتملة ✔️' : 'إنجاز'}
                   </button>
+                  <button onClick={() => deleteTask(task.id)} className="text-red-400 p-1">🗑️</button>
                 </div>
-              ))
-            )}
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* قسم أهدافي الممتدة (أسبوع، شهر، سنة) 🏆 */}
-      {activeMainTab === 'goals' && (
-        <div className="space-y-6">
-          {/* شريط اختيار الفترة الممتدة */}
-          <div className="flex justify-center gap-2 bg-[#161e2c] p-2 rounded-2xl border border-gray-800 text-xs font-bold">
-            <button
-              onClick={() => setGoalSubPeriod('week')}
-              className={`flex-1 py-2 rounded-xl transition ${
-                goalSubPeriod === 'week' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              📅 أهداف الأسبوع
-            </button>
-            <button
-              onClick={() => setGoalSubPeriod('month')}
-              className={`flex-1 py-2 rounded-xl transition ${
-                goalSubPeriod === 'month' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              🗓️ أهداف الشهر
-            </button>
-            <button
-              onClick={() => setGoalSubPeriod('year')}
-              className={`flex-1 py-2 rounded-xl transition ${
-                goalSubPeriod === 'year' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              🚀 أهداف السنة
-            </button>
-          </div>
-
-          {/* شريط التقدم للهدف */}
-          <div className="bg-[#161e2c] border border-gray-800 p-4 rounded-2xl flex justify-between items-center">
-            <div>
-              <span className="text-xs text-gray-400 block font-medium">نسبة إنجاز أهداف {goalSubPeriod === 'week' ? 'الأسبوع' : goalSubPeriod === 'month' ? 'الشهر' : 'السنة'}</span>
-              <span className="text-lg font-black text-blue-400">{completedGoalsCount} من {filteredGoals.length} أهداف مكتملة</span>
-            </div>
-            <div className="text-2xl font-black text-emerald-400">%{goalsPct}</div>
-          </div>
-
-          {/* نموذج إضافة هدف */}
-          <form onSubmit={addExtendedGoal} className="flex gap-2">
-            <input
-              type="text"
-              placeholder={`إضافة هدف ${goalSubPeriod === 'week' ? 'أسبوعي' : goalSubPeriod === 'month' ? 'شهري' : 'سنوي'} جديد...`}
-              value={newGoalInput}
-              onChange={(e) => setNewGoalInput(e.target.value)}
-              className="flex-1 bg-[#161e2c] border border-gray-700/80 p-3.5 rounded-2xl outline-none text-white text-sm focus:border-blue-500"
-            />
-            <button
-              type="submit"
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3.5 rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition"
-            >
-              إضافة ➕
-            </button>
-          </form>
-
-          {/* قائمة الأهداف */}
-          <div className="space-y-3">
-            {filteredGoals.length === 0 ? (
-              <div className="text-center py-12 text-gray-500 text-sm bg-[#131a26] rounded-3xl border border-dashed border-gray-800">
-                لا توجد أهداف مسجلة لهذه الفترة حتى الآن.
-              </div>
-            ) : (
-              filteredGoals.map((goal) => (
-                <div
-                  key={goal.id}
-                  className={`p-4 rounded-2xl flex justify-between items-center border transition ${
-                    goal.completed
-                      ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-200 line-through'
-                      : 'bg-[#161e2c] border-gray-700/80 text-white'
-                  }`}
-                >
-                  <div
-                    onClick={() => toggleExtendedGoal(goal.id)}
-                    className="flex items-center gap-3 cursor-pointer flex-1"
-                  >
-                    <div className={`w-6 h-6 rounded-lg border flex items-center justify-center font-bold text-xs ${
-                      goal.completed ? 'bg-emerald-500 border-emerald-400 text-white' : 'border-gray-600'
-                    }`}>
-                      {goal.completed && '✓'}
-                    </div>
-                    <span className="text-sm font-bold">{goal.title}</span>
-                  </div>
-                  <button
-                    onClick={() => deleteExtendedGoal(goal.id)}
-                    className="text-gray-500 hover:text-red-400 p-1 text-sm font-bold transition"
-                  >
-                    🗑️
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* نافذة تسجيل الدخول / إنشاء حساب 🔐 */}
-      {isAuthModalOpen && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-sm space-y-4 text-white shadow-2xl relative">
-            <button onClick={() => setIsAuthModalOpen(false)} className="absolute top-4 left-4 text-gray-400 text-lg font-bold">✕</button>
-            
-            <div className="grid grid-cols-2 gap-2 bg-[#0d131d] p-1.5 rounded-2xl border border-gray-800 text-center text-xs font-bold mt-2">
-              <button
-                onClick={() => setAuthTab('signin')}
-                className={`py-2 rounded-xl transition ${
-                  authTab === 'signin' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                تسجيل الدخول
-              </button>
-              <button
-                onClick={() => setAuthTab('signup')}
-                className={`py-2 rounded-xl transition ${
-                  authTab === 'signup' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                إنشاء حساب جديد
-              </button>
-            </div>
-            
-            {authError && <div className="p-2.5 bg-red-500/20 border border-red-500/40 text-red-300 text-xs rounded-xl text-center font-bold">{authError}</div>}
-
-            <form onSubmit={handleAuthSubmit} className="space-y-3">
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">البريد الإلكتروني</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-[#0d131d] border border-gray-700 p-3 rounded-xl outline-none text-sm text-white focus:border-blue-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">كلمة المرور</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-[#0d131d] border border-gray-700 p-3 rounded-xl outline-none text-sm text-white focus:border-blue-500"
-                  required
-                />
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="rememberEmail"
-                  checked={rememberEmail}
-                  onChange={(e) => setRememberEmail(e.target.checked)}
-                  className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
-                />
-                <label htmlFor="rememberEmail" className="text-xs text-gray-300 cursor-pointer font-medium">
-                  حفظ البريد الإلكتروني على هذا الجهاز
-                </label>
-              </div>
-
-              <button type="submit" className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 font-bold text-sm rounded-xl shadow-lg active:scale-95 transition mt-2">
-                {authTab === 'signup' ? 'إنشاء الحساب الان' : 'تأكيد الدخول'}
-              </button>
-            </form>
-
-            <div className="relative my-3 text-center">
-              <span className="bg-[#18202e] px-2 text-xs text-gray-500 relative z-10">أو</span>
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-800"></div></div>
-            </div>
-
-            <button onClick={handleGoogleAuth} className="w-full py-2.5 bg-white text-gray-900 font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md active:scale-95 transition">
-              <span>المتابعة عبر Google</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* نافذة العداد والتركيز التفاعلي */}
+      {/* نافذة العداد والمؤقت التفاعلي السريع ⏱️ */}
       {activeHabitCounter && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-[#121824] border border-gray-800 rounded-3xl p-6 w-full max-w-sm space-y-6 text-white text-center shadow-2xl relative">
+          <div className="bg-[#121824] border border-gray-800 rounded-3xl p-6 w-full max-w-sm space-y-5 text-white text-center shadow-2xl relative">
             <button
               onClick={() => {
                 setActiveHabitCounter(null);
@@ -1198,323 +905,187 @@ export default function Home() {
               ✕
             </button>
 
-            {/* بطاقة العادة */}
             <div className="bg-[#1c2536] p-4 rounded-2xl border border-gray-700/60 space-y-1 mt-4">
               <h3 className="text-2xl font-black">{activeHabitCounter.title}</h3>
               <p className="text-xs text-gray-400 font-bold">
-                إنجاز يوم {selectedDate}: <span className="text-blue-400">{getHabitCount(activeHabitCounter.id)}</span> من {activeHabitCounter.targetCount} {activeHabitCounter.unit}
+                الإنجاز: {getHabitCount(activeHabitCounter.id)} من {activeHabitCounter.targetCount} {activeHabitCounter.unit}
               </p>
             </div>
 
-            {/* مفتاح التبديل للمؤقت التنازلي والعداد */}
             {activeHabitCounter.type === 'مؤقت' && (
               <div className="flex justify-between items-center bg-[#0a0f18] p-2.5 rounded-2xl border border-gray-800">
                 <span className="text-xs font-bold text-gray-300">
-                  {timerMode === 'timer' ? '⏱️ مؤقت تنازلي حي (خلفية)' : '📊 عداد يدوي'}
+                  {timerMode === 'timer' ? '⏱️ مؤقت تفاعلي' : '📊 عداد يدوي'}
                 </span>
                 <button
                   onClick={() => togglePreferredMode(timerMode === 'timer' ? 'counter' : 'timer')}
-                  className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 flex items-center ${
+                  className={`w-12 h-6 rounded-full p-1 transition flex items-center ${
                     timerMode === 'timer' ? 'bg-blue-600 justify-end' : 'bg-gray-700 justify-start'
                   }`}
                 >
-                  <div className="w-4 h-4 rounded-full bg-white shadow-md transform transition-transform" />
+                  <div className="w-4 h-4 rounded-full bg-white shadow-md" />
                 </button>
               </div>
             )}
 
-            {/* تصميم العداد الدائري الأزرق */}
             {(activeHabitCounter.type !== 'مؤقت' || timerMode === 'counter') ? (
-              <div className="py-2">
-                <div className="flex justify-center items-center gap-5 my-4">
-                  
-                  {/* زر الزيادة (+) الأخضر */}
+              <div className="py-2 space-y-4">
+                <div className="flex justify-center items-center gap-5 my-2">
                   <button
-                    onClick={() => {
-                      const current = getHabitCount(activeHabitCounter.id);
-                      updateHabitCount(activeHabitCounter.id, current + 1);
-                    }}
-                    className="w-16 h-16 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-3xl shadow-lg shadow-emerald-900/40 active:scale-90 transition flex items-center justify-center border border-emerald-400/40"
+                    onClick={() => updateHabitCount(activeHabitCounter.id, getHabitCount(activeHabitCounter.id) + 1)}
+                    className="w-16 h-16 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-3xl shadow-lg active:scale-90 transition flex items-center justify-center border border-emerald-400/40"
                   >
                     +
                   </button>
 
-                  {/* الزر الدائري الكبير بالمنتصف */}
-                  <button
-                    onClick={() => {
-                      const current = getHabitCount(activeHabitCounter.id);
-                      updateHabitCount(activeHabitCounter.id, current + 1);
-                    }}
-                    className="w-36 h-36 rounded-full bg-gradient-to-b from-blue-500 to-blue-600 border-4 border-blue-400/50 flex flex-col items-center justify-center shadow-2xl shadow-blue-500/40 active:scale-95 transition-transform"
-                  >
-                    <span className="text-5xl font-black text-white drop-shadow-md">
-                      {getHabitCount(activeHabitCounter.id)}
-                    </span>
-                  </button>
+                  <div className="w-32 h-32 rounded-full border-4 border-blue-500 bg-blue-600/20 text-blue-400 flex flex-col items-center justify-center shadow-xl">
+                    <span className="text-4xl font-black">{getHabitCount(activeHabitCounter.id)}</span>
+                    <span className="text-[10px] text-gray-300 font-bold mt-1">الإنجاز الحالي</span>
+                  </div>
 
-                  {/* زر التنقيص (-) الأحمر */}
                   <button
-                    onClick={() => {
-                      const current = getHabitCount(activeHabitCounter.id);
-                      updateHabitCount(activeHabitCounter.id, Math.max(0, current - 1));
-                    }}
-                    className="w-16 h-16 rounded-full bg-red-700 hover:bg-red-600 text-white font-black text-3xl shadow-lg shadow-red-950/40 active:scale-90 transition flex items-center justify-center border border-red-500/40"
+                    onClick={() => updateHabitCount(activeHabitCounter.id, Math.max(0, getHabitCount(activeHabitCounter.id) - 1))}
+                    className="w-16 h-16 rounded-full bg-red-700 hover:bg-red-600 text-white font-black text-3xl shadow-lg active:scale-90 transition flex items-center justify-center border border-red-500/40"
                   >
                     -
                   </button>
-
                 </div>
-
-                <button
-                  onClick={() => {
-                    updateHabitCount(activeHabitCounter.id, activeHabitCounter.targetCount);
-                    setActiveHabitCounter(null);
-                  }}
-                  className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 rounded-2xl font-extrabold text-sm text-black shadow-lg shadow-emerald-500/20 active:scale-95 transition mt-4"
-                >
-                  تسجيل إكمال الهدف بالكامل ✔️
-                </button>
               </div>
             ) : (
-              /* واجهة المؤقت التنازلي التفاعلي الممتد */
-              <div className="space-y-5 py-2">
-                <div className="w-36 h-36 rounded-full border-4 border-blue-500/40 mx-auto flex flex-col items-center justify-center bg-blue-600/10 shadow-inner relative">
+              <div className="space-y-4 py-2">
+                <div className="w-36 h-36 rounded-full border-4 border-blue-500/40 mx-auto flex flex-col items-center justify-center bg-blue-600/10 shadow-inner">
                   <span className="text-3xl font-black font-mono tracking-wider text-blue-400">
                     {formatTimerString(timerSecondsLeft)}
                   </span>
-                  <span className="text-[10px] text-gray-400 mt-1 font-bold">
-                    {isOvertime ? 'وقت إضافي ⏱️' : `المستهدف: ${activeHabitCounter.targetCount} دقيقة`}
-                  </span>
                 </div>
 
-                {isTimerFinished ? (
-                  <div className="space-y-2">
-                    <div className="p-2.5 bg-emerald-500/20 text-emerald-300 rounded-xl text-xs font-bold border border-emerald-500/30">
-                      🎉 مكتمل! يمكنك زيادة الوقت إضافياً.
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={startOvertime}
-                        className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl text-xs shadow-lg active:scale-95 transition"
-                      >
-                        أكمل الوقت ➕
-                      </button>
-                      <button
-                        onClick={() => setActiveHabitCounter(null)}
-                        className="flex-1 py-3 bg-gray-800 text-gray-300 font-bold rounded-2xl text-xs border border-gray-700 active:scale-95 transition"
-                      >
-                        إكتفاء 🏁
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex gap-2 justify-center">
-                    {!isTimerRunning ? (
-                      <button
-                        onClick={startTimer}
-                        className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-2xl shadow-lg active:scale-95 transition"
-                      >
-                        ▶️ بدء المؤقت
-                      </button>
-                    ) : (
-                      <button
-                        onClick={pauseTimer}
-                        className="flex-1 py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold text-sm rounded-2xl shadow-lg active:scale-95 transition"
-                      >
-                        ⏸️ إيقاف مؤقت
-                      </button>
-                    )}
-                    <button
-                      onClick={resetTimer}
-                      className="px-4 py-3 bg-gray-800 text-gray-300 hover:text-white rounded-2xl font-bold text-xs border border-gray-700 active:scale-95 transition"
-                    >
-                      ↺ إعادة
+                <div className="flex gap-2 justify-center">
+                  {!isTimerRunning ? (
+                    <button onClick={startTimer} className="flex-1 py-3 bg-emerald-600 text-white font-bold text-sm rounded-2xl">
+                      {t.startTimer || 'بدء'}
                     </button>
-                  </div>
-                )}
+                  ) : (
+                    <button onClick={pauseTimer} className="flex-1 py-3 bg-amber-600 text-white font-bold text-sm rounded-2xl">
+                      {t.pauseTimer || 'إيقاف'}
+                    </button>
+                  )}
+                  <button onClick={resetTimer} className="px-4 py-3 bg-gray-800 text-gray-300 rounded-2xl text-xs font-bold">
+                    {t.resetTimer || 'إعادة'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* زر إضافة عادة */}
-      {activeMainTab === 'habits' && (
-        <button
-          onClick={() => {
-            setEditingHabit(null);
-            setTitle('');
-            setHabitType('عداد');
-            setHabitCategory('إيجابية');
-            setTargetCount(10);
-            setUnit('صفحة');
-            setSelectedDays([0, 1, 2, 3, 4, 5, 6]);
-            setIsAddModalOpen(true);
-          }}
-          className="fixed bottom-16 right-8 w-14 h-14 bg-gradient-to-tr from-blue-600 to-indigo-500 text-white rounded-2xl shadow-2xl shadow-blue-500/40 text-3xl font-bold flex items-center justify-center border border-white/20 transition active:scale-95 z-40"
-        >
-          +
-        </button>
-      )}
-
-      {/* نافذة إضافة أو تعديل عادة */}
+      {/* شاشة إضافة أو تعديل عادة السويتش للحد الأدنى والأقصى */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl my-8">
+          <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-4 text-white shadow-2xl my-8">
             <div className="flex justify-between items-center border-b border-gray-700/80 pb-3">
-              <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 text-sm">إلغاء</button>
-              <h3 className="text-lg font-bold">{editingHabit ? 'تعديل العادة' : 'إضافة عادة جديدة'}</h3>
-              <button onClick={handleSaveHabit} className="text-blue-400 font-bold text-sm">حفظ</button>
+              <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 text-sm">{t.cancel}</button>
+              <h3 className="text-lg font-bold">{editingHabit ? t.editHabit : t.addHabit}</h3>
+              <button onClick={handleSaveHabit} className="text-blue-400 font-bold text-sm">{t.save}</button>
             </div>
 
             <form onSubmit={handleSaveHabit} className="space-y-4">
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">اسم العادة</label>
-                <input
-                  type="text"
-                  placeholder="مثلاً: قراءة قرآن أو ترك السهر"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full bg-[#0d131d] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm focus:border-blue-500"
-                  required
-                />
+              <input
+                type="text"
+                placeholder="اسم العادة..."
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full bg-[#0d131d] border border-gray-700 p-3 rounded-xl outline-none text-white text-sm"
+                required
+              />
+
+              <div className="grid grid-cols-2 gap-2 bg-[#0d131d] p-1.5 rounded-2xl border border-gray-700 text-center text-xs font-bold">
+                <button type="button" onClick={() => setHabitCategory('إيجابية')} className={`py-2 rounded-xl ${habitCategory === 'إيجابية' ? 'bg-emerald-600 text-white' : 'text-gray-400'}`}>{t.positive}</button>
+                <button type="button" onClick={() => setHabitCategory('سيئة')} className={`py-2 rounded-xl ${habitCategory === 'سيئة' ? 'bg-amber-600 text-white' : 'text-gray-400'}`}>{t.negative}</button>
               </div>
 
-              <div>
-                <label className="text-xs text-gray-400 block mb-2">تصنيف العادة</label>
-                <div className="grid grid-cols-2 gap-2 bg-[#0d131d] p-1.5 rounded-2xl border border-gray-700 text-center text-xs font-bold">
+              {/* سويتش الحد الأدنى والأقصى المرن */}
+              <div className="bg-[#0d131d] p-3 rounded-2xl border border-gray-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-blue-400">{t.useRange}</span>
                   <button
                     type="button"
-                    onClick={() => setHabitCategory('إيجابية')}
-                    className={`py-2 rounded-xl transition ${
-                      habitCategory === 'إيجابية' ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-400'
-                    }`}
+                    onClick={() => setUseRange(!useRange)}
+                    className={`w-12 h-6 rounded-full p-1 transition flex items-center ${useRange ? 'bg-blue-600 justify-end' : 'bg-gray-700 justify-start'}`}
                   >
-                    🎯 عادة إيجابية (بناء)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setHabitCategory('سيئة')}
-                    className={`py-2 rounded-xl transition ${
-                      habitCategory === 'سيئة' ? 'bg-amber-600 text-white shadow-lg' : 'text-gray-400'
-                    }`}
-                  >
-                    🛡️ عادة سيئة (ترك)
+                    <div className="w-4 h-4 rounded-full bg-white shadow-md" />
                   </button>
                 </div>
-              </div>
 
-              <div>
-                <label className="text-xs text-gray-400 block mb-2">نوع العادة</label>
-                <div className="grid grid-cols-3 gap-2 bg-[#0d131d] p-1.5 rounded-2xl border border-gray-700 text-center text-xs font-bold">
-                  {(['مهمة', 'مؤقت', 'عداد'] as const).map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setHabitType(t)}
-                      className={`py-2 rounded-xl transition ${
-                        habitType === t ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-400 block mb-2">تحديد أيام الظهور والتكرار</label>
-                <div className="flex justify-between gap-1 bg-[#0d131d] p-2 rounded-2xl border border-gray-700">
-                  {DAYS_LOOKUP.map((day) => {
-                    const isSelected = selectedDays.includes(day.id);
-                    return (
-                      <button
-                        key={day.id}
-                        type="button"
-                        onClick={() => toggleDaySelection(day.id)}
-                        className={`flex-1 py-2 rounded-xl text-xs font-bold transition ${
-                          isSelected
-                            ? 'bg-blue-600 text-white shadow-md'
-                            : 'bg-gray-800 text-gray-500 hover:text-gray-300'
-                        }`}
-                      >
-                        {day.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {(habitType === 'عداد' || habitType === 'مؤقت') && habitCategory !== 'سيئة' && (
-                <div className="space-y-2 bg-[#0d131d] p-4 rounded-2xl border border-gray-700">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-gray-400">
-                      {habitType === 'مؤقت' ? 'أدخل الدقائق' : 'تحديد العدد المستهدف'}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setTargetCount(Math.max(1, targetCount - 1))}
-                        className="w-7 h-7 bg-gray-800 rounded-lg font-bold"
-                      >
-                        -
-                      </button>
-                      <span className="font-bold text-blue-400 text-sm">{targetCount}</span>
-                      <button
-                        type="button"
-                        onClick={() => setTargetCount(targetCount + 1)}
-                        className="w-7 h-7 bg-gray-800 rounded-lg font-bold"
-                      >
-                        +
-                      </button>
+                {useRange ? (
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div>
+                      <label className="text-[11px] text-gray-400 block mb-1">{t.minGoal}</label>
+                      <input
+                        type="number"
+                        value={minValInput}
+                        onChange={(e) => setMinValInput(Number(e.target.value))}
+                        className="w-full bg-[#161e2c] border border-gray-700 p-2 rounded-xl text-center text-sm font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-gray-400 block mb-1">{t.maxGoal}</label>
+                      <input
+                        type="number"
+                        value={maxValInput}
+                        onChange={(e) => setMaxValInput(Number(e.target.value))}
+                        className="w-full bg-[#161e2c] border border-gray-700 p-2 rounded-xl text-center text-sm font-bold"
+                      />
                     </div>
                   </div>
-                  <input
-                    type="range"
-                    min="1"
-                    max="120"
-                    value={targetCount}
-                    onChange={(e) => setTargetCount(Number(e.target.value))}
-                    className="w-full accent-blue-500 cursor-pointer"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="text-xs text-gray-400 block mb-2">لون أشكال العادة</label>
-                <div className="flex gap-3 justify-center">
-                  {COLOR_OPTIONS.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setSelectedColor(color)}
-                      style={{ backgroundColor: color }}
-                      className={`w-9 h-9 rounded-2xl border-2 transition ${
-                        selectedColor === color ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-80'
-                      }`}
+                ) : (
+                  <div>
+                    <label className="text-[11px] text-gray-400 block mb-1">{t.targetCount}</label>
+                    <input
+                      type="number"
+                      value={targetCount}
+                      onChange={(e) => setTargetCount(Number(e.target.value))}
+                      className="w-full bg-[#161e2c] border border-gray-700 p-2 rounded-xl text-center text-sm font-bold"
                     />
-                  ))}
-                </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 justify-center pt-2">
+                {COLOR_OPTIONS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setSelectedColor(color)}
+                    style={{ backgroundColor: color }}
+                    className={`w-8 h-8 rounded-2xl border-2 ${selectedColor === color ? 'border-white scale-110' : 'border-transparent'}`}
+                  />
+                ))}
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* شريط التنقل السفلي الثابت */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#131a26]/90 backdrop-blur-lg border-t border-gray-800 py-3 px-6 flex justify-around items-center z-50">
-        <Link href="/" className="flex flex-col items-center gap-1 text-blue-400 font-bold">
-          <span className="text-xl">✅</span>
-          <span className="text-[10px]">العادات</span>
-        </Link>
-        <Link href="/history" className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition">
-          <span className="text-xl">📅</span>
-          <span className="text-[10px] font-bold">السجل</span>
-        </Link>
-        <Link href="/stats" className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition">
-          <span className="text-xl">📊</span>
-          <span className="text-[10px] font-bold">الإحصائيات</span>
-        </Link>
+      {/* زر العادة العائم (+)، المقتصر على تبويب العادات */}
+      {activeMainTab === 'habits' && (
+        <button
+          onClick={() => {
+            setEditingHabit(null);
+            setTitle('');
+            setIsAddModalOpen(true);
+          }}
+          className="fixed bottom-16 right-8 w-14 h-14 bg-blue-600 text-white rounded-2xl shadow-2xl text-3xl font-bold flex items-center justify-center z-40"
+        >
+          +
+        </button>
+      )}
+
+      {/* شريط التنقل السفلي */}
+      <div className="fixed bottom-0 left-0 right-0 bg-[#131a26]/90 backdrop-blur-lg border-t border-gray-800 py-3 px-6 flex justify-around items-center z-50 text-xs font-bold">
+        <Link href="/" className="text-blue-400">✅ {lang === 'ar' ? 'العادات' : 'Habits'}</Link>
+        <Link href="/goals" className="text-gray-400 hover:text-white">🏆 {lang === 'ar' ? 'الأهداف الذكية' : 'SMART Goals'}</Link>
+        <Link href="/stats" className="text-gray-400 hover:text-white">📊 {lang === 'ar' ? 'الإحصائيات' : 'Stats'}</Link>
       </div>
 
     </div>
