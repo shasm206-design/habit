@@ -77,7 +77,10 @@ const TRANSLATIONS = {
     historyNav: '📅 السجل',
     goalsNav: '🏆 الأهداف الذكية',
     statsNav: '📊 الإحصائيات',
-    placeholderHabitName: 'مثلاً: قراءة قرآن أو ترك السهر'
+    placeholderHabitName: 'مثلاً: قراءة قرآن أو ترك السهر',
+    addTaskPlaceholder: 'إضافة مهمة جديدة اليوم...',
+    taskCompleted: 'مكتملة ✔️',
+    taskIncomplete: 'إنجاز',
   },
   en: {
     welcome: 'Welcome,',
@@ -120,7 +123,10 @@ const TRANSLATIONS = {
     historyNav: '📅 History',
     goalsNav: '🏆 SMART Goals',
     statsNav: '📊 Statistics',
-    placeholderHabitName: 'e.g., Quran Reading or Quit Late Nights'
+    placeholderHabitName: 'e.g., Quran Reading or Quit Late Nights',
+    addTaskPlaceholder: 'Add a new task today...',
+    taskCompleted: 'Done ✔️',
+    taskIncomplete: 'Complete',
   }
 };
 
@@ -139,6 +145,7 @@ export default function Home() {
   const [activeMainTab, setActiveMainTab] = useState<'habits' | 'todo'>('habits');
   
   const [isEditMode, setIsEditMode] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // Modals & Timers
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -151,11 +158,8 @@ export default function Home() {
   const [timerMode, setTimerMode] = useState<'timer' | 'counter'>('counter');
   const [timerSecondsLeft, setTimerSecondsLeft] = useState<number>(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
-
-  // Auth State
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [authError, setAuthError] = useState('');
+  const [isTimerFinished, setIsTimerFinished] = useState(false);
+  const [isOvertime, setIsOvertime] = useState(false);
 
   // Habit Form State
   const [title, setTitle] = useState('');
@@ -266,13 +270,33 @@ export default function Home() {
           displayName: nameToSave
         }, { merge: true });
       } catch (err) {
-        console.error('Save Error:', err);
+        console.error('Error saving data:', err);
       }
     } else {
       localStorage.setItem('habit_tracker_habits', JSON.stringify(updatedHabits));
       localStorage.setItem('habit_tracker_daily', JSON.stringify(updatedDaily));
       localStorage.setItem('habit_tracker_tasks', JSON.stringify(updatedTasks));
       localStorage.setItem('habit_tracker_user_name', nameToSave);
+    }
+  };
+
+  const moveHabit = (index: number, direction: 'up' | 'down') => {
+    const currentVisible = visibleHabits;
+    const targetVisibleIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetVisibleIndex < 0 || targetVisibleIndex >= currentVisible.length) return;
+
+    const itemToMove = currentVisible[index];
+    const itemToSwap = currentVisible[targetVisibleIndex];
+
+    const fullIndex1 = habits.findIndex((h) => h.id === itemToMove.id);
+    const fullIndex2 = habits.findIndex((h) => h.id === itemToSwap.id);
+
+    if (fullIndex1 !== -1 && fullIndex2 !== -1) {
+      const newHabits = [...habits];
+      const temp = newHabits[fullIndex1];
+      newHabits[fullIndex1] = newHabits[fullIndex2];
+      newHabits[fullIndex2] = temp;
+      saveData(newHabits, dailyData);
     }
   };
 
@@ -482,7 +506,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* نافذة البروفايل بالبريد الإلكتروني 👤 */}
+      {/* نافذة البروفايل (البريد الإلكتروني واللغة) 👤 */}
       {isProfileModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-5 text-white shadow-2xl relative my-8">
@@ -539,7 +563,7 @@ export default function Home() {
         />
       </div>
 
-      {/* 3. التبويبات الرئيسية (تم حذف الأهداف الذكية للاكتفاء بالصفحة المنفصلة) */}
+      {/* 3. تبويبات الصفحة الرئيسية (العادات | المهام) */}
       <div className="grid grid-cols-2 gap-1.5 bg-[#161e2c] p-1.5 rounded-2xl border border-gray-700/80 mb-6 text-center text-xs md:text-sm font-bold">
         <button
           onClick={() => setActiveMainTab('habits')}
@@ -604,6 +628,8 @@ export default function Home() {
                     setIsAddModalOpen(true);
                   }}
                   onDelete={() => saveData(habits.filter((h) => h.id !== habit.id), dailyData)}
+                  onMoveUp={index > 0 ? () => moveHabit(index, 'up') : undefined}
+                  onMoveDown={index < visibleHabits.length - 1 ? () => moveHabit(index, 'down') : undefined}
                 />
               ))
             )}
@@ -617,7 +643,7 @@ export default function Home() {
           <form onSubmit={addTask} className="flex gap-2">
             <input
               type="text"
-              placeholder={lang === 'ar' ? 'إضافة مهمة جديدة اليوم...' : 'Add a new task today...'}
+              placeholder={t.addTaskPlaceholder}
               value={newTaskInput}
               onChange={(e) => setNewTaskInput(e.target.value)}
               className="flex-1 bg-[#161e2c] border border-gray-700/80 p-3 rounded-2xl outline-none text-white text-sm focus:border-blue-500"
@@ -636,7 +662,7 @@ export default function Home() {
                     onClick={() => toggleTask(task.id)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${task.completed ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-300'}`}
                   >
-                    {task.completed ? (lang === 'ar' ? 'مكتملة ✔️' : 'Done ✔️') : (lang === 'ar' ? 'إنجاز' : 'Complete')}
+                    {task.completed ? t.taskCompleted : t.taskIncomplete}
                   </button>
                   <button onClick={() => deleteTask(task.id)} className="text-red-400 p-1">🗑️</button>
                 </div>
@@ -646,7 +672,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* شاشة إضافة أو تعديل عادة الأصلية المطابقة للصورة + السويتش */}
+      {/* شاشة إضافة أو تعديل عادة بالكامل المطابقة للتصميم الأصلي + السويتش */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-[#18202e] border border-gray-700/80 rounded-3xl p-6 w-full max-w-md space-y-4 text-white shadow-2xl my-8">
@@ -704,7 +730,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* السويتش والسلايدر الأصلي */}
+              {/* السويتش + السلايدر الرقمي الأصلي فوق الألوان مباشرة */}
               <div className="bg-[#0d131d] p-3 rounded-2xl border border-gray-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-blue-400">{t.useRange}</span>
@@ -789,7 +815,7 @@ export default function Home() {
         </button>
       )}
 
-      {/* شريط التنقل السفلي الثابت وبداخله السجل History 📅 */}
+      {/* شريط التنقل السفلي الثابت وبداخله 4 خيارات رئيسية */}
       <div className="fixed bottom-0 left-0 right-0 bg-[#131a26]/90 backdrop-blur-lg border-t border-gray-800 py-3 px-6 flex justify-around items-center z-50 text-xs font-bold">
         <Link href="/" className="text-blue-400">{t.habitsNav}</Link>
         <Link href="/history" className="text-gray-400 hover:text-white transition">{t.historyNav}</Link>
